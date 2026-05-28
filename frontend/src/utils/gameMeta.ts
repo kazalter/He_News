@@ -51,3 +51,21 @@ export function gameShortName(game?: Pick<Game, 'slug' | 'name'> | null) {
 export function matchesGameFilter(game: Pick<Game, 'slug' | 'name'> | undefined | null, selectedGame: string) {
   return selectedGame === 'all' || resolveGameKey(game) === selectedGame
 }
+
+/**
+ * 不同游戏对"角色配套武器"的叫法不一样：
+ *   星穹铁道 → 光锥；绝区零 → 音擎；原神 → 武器
+ * banner 卡片上的"光锥/新光锥"标签需要按游戏切换；characterPath 里的"命途/特性"
+ * 也是一对：HSR 叫命途、ZZZ 叫特性，但目前 banner card 没显式标这个 label，先不动。
+ */
+const WEAPON_TERMS: Partial<Record<GameKey, string>> = {
+  hsr: '光锥',
+  zzz: '音擎',
+  genshin: '武器',
+  wuwa: '武器',
+}
+
+export function weaponLabel(game?: Pick<Game, 'slug' | 'name'> | null) {
+  const key = resolveGameKey(game)
+  return WEAPON_TERMS[key] ?? '武器'
+}

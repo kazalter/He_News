@@ -6,7 +6,7 @@ import GameTag from '../components/ui/GameTag.vue'
 import LinkBtn from '../components/ui/LinkBtn.vue'
 import QuietTag from '../components/ui/Tag.vue'
 import { useNewsStore } from '../stores/news'
-import { gameColor, gameShortName } from '../utils/gameMeta'
+import { gameColor, gameShortName, weaponLabel } from '../utils/gameMeta'
 
 const store = useNewsStore()
 const selectedVersion = ref<string | null>(null)
@@ -116,8 +116,8 @@ function formatBannerTime(startAt?: string | null, endAt?: string | null, raw?: 
       <div>
         <h1 class="page-title">版本计划</h1>
         <p class="page-subtitle">
-          从官方版本前瞻专题页同步：版本号 / 上线时间 / 卡池 / 新角色 / 新光锥 / 活动。在「来源管理」里以
-          <code>mihoyo · 版本前瞻专题</code> 类型添加专题落地页地址，然后抓取即可。
+          从官方专题 / 资讯 API 同步：版本号 / 上线时间 / 卡池 / 新角色 / 新武器（光锥·音擎）/ 活动。
+          在「来源管理」里挂 <code>mihoyo · 版本前瞻专题</code> 或 <code>绝区零版本（新闻 API）</code>，抓取即可。
         </p>
       </div>
       <div class="page-actions">
@@ -242,9 +242,9 @@ function formatBannerTime(startAt?: string | null, endAt?: string | null, raw?: 
             </div>
             <div class="banner-card__row">
               <div class="banner-card__label">
-                <span>光锥</span>
+                <span>{{ weaponLabel(activePlan.game) }}</span>
                 <em v-if="banner.isNewLightCone" class="badge-new">
-                  <Star /> 新光锥
+                  <Star /> 新{{ weaponLabel(activePlan.game) }}
                 </em>
               </div>
               <strong v-if="banner.lightConeName">
