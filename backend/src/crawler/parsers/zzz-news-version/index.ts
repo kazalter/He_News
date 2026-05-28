@@ -268,17 +268,25 @@ export async function parseZzzNewsVersion(
     }
   }
 
-  // 组事件：A 级角色（带 phase 标签）+ 活动 + 主线。
+  // 组事件：A 级代理人 + 主线 + 活动。
+  // 注意：A 级在 ZZZ 限时频段里基本都是"现有角色调频复刻"，不是新角色。早期错误地
+  // 用 category='character' 让它们落到前端"新角色" section + 贴"新角色"徽章，是
+  // 误导。改用 category='other' 把它们落到"其他更新" section，标签明确写
+  // "A 级 · 第N期 · 调频"，不再误标为新角色。
+  // category='character' 留给 homepage-mi18n 模式里 cha_name_* 这种真新角色场景。
   const events: ParsedVersionEvent[] = [];
   for (const phase of [1, 2] as const) {
     const data = phaseData[phase];
     const phaseLabel = phase === 1 ? '第一期' : '第二期';
     for (const a of data.aAgents) {
-      const attrPart = a.element ? ` · ${a.element}·${a.spec ?? ''}` : '';
+      const attrPart = a.element
+        ? `${a.element}·${a.spec ?? ''}`
+        : (a.spec ?? '');
       events.push({
-        category: 'character',
+        category: 'other',
         name: a.name,
-        label: `A 级（${phaseLabel}）${attrPart}`,
+        label: `A 级 · ${phaseLabel} · 调频`,
+        info: attrPart || undefined,
       });
     }
     if (data.mainStory) {
