@@ -7,6 +7,7 @@ import Parser from 'rss-parser';
 import { ClassificationService } from '../classification/classification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { parseMihoyoVersionSpecial } from './parsers/mihoyo-version-special';
+import { parseZzzNewsVersion } from './parsers/zzz-news-version';
 
 @Injectable()
 export class CrawlerService {
@@ -31,7 +32,10 @@ export class CrawlerService {
     });
 
     try {
-      if (source.type === 'mihoyo-version-special') {
+      if (
+        source.type === 'mihoyo-version-special' ||
+        source.type === 'mihoyo-zzz-news-version'
+      ) {
         const summary = await this.crawlVersionSpecial(source);
         await this.prisma.source.update({
           where: { id: sourceId },
@@ -145,7 +149,10 @@ export class CrawlerService {
   }
 
   private async crawlVersionSpecial(source: Source) {
-    const parsed = await parseMihoyoVersionSpecial(source.url);
+    const parsed =
+      source.type === 'mihoyo-zzz-news-version'
+        ? await parseZzzNewsVersion(source.url)
+        : await parseMihoyoVersionSpecial(source.url);
 
     const plan = await this.prisma.versionPlan.upsert({
       where: {

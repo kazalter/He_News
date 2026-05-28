@@ -24,6 +24,7 @@ const typeOptions = [
   { label: 'Manual', value: 'manual' },
   { label: 'mihoyo · 资讯列表', value: 'mihoyo-content-v2' },
   { label: 'mihoyo · 版本前瞻专题', value: 'mihoyo-version-special' },
+  { label: 'mihoyo · 绝区零版本（新闻 API）', value: 'mihoyo-zzz-news-version' },
 ]
 
 onMounted(async () => {

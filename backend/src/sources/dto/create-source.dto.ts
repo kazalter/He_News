@@ -28,6 +28,7 @@ export class CreateSourceDto {
     'manual',
     'mihoyo-content-v2',
     'mihoyo-version-special',
+    'mihoyo-zzz-news-version',
   ])
   type: string;
 
