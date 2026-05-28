@@ -1,0 +1,74 @@
+:root {
+  --canvas: #0a0a0b;
+  --surface: #111114;
+  --surface-hi: #17171b;
+  --surface-active: #1b1b22;
+
+  --border: rgba(255, 255, 255, 0.06);
+  --border-em: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --hairline: rgba(255, 255, 255, 0.04);
+
+  --ink-1: #ececee;
+  --ink-2: #a1a1a8;
+  --ink-3: #6b6b72;
+  --ink-4: #3f3f44;
+
+  --accent: #7b83ff;
+  --accent-soft: rgba(123, 131, 255, 0.14);
+  --gold: #c9a874;
+  --green: #5dbd83;
+  --red: #e15b5b;
+  --amber: #d4a24a;
+
+  --game-genshin: #b59969;
+  --game-hsr: #9389c2;
+  --game-zzz: #c7a547;
+  --game-wuwa: #5fa29a;
+  --game-ark: #c77d4d;
+  --game-r1999: #af6770;
+  --game-bluearchive: #7689b0;
+
+  --font-sans: "Geist", "Inter", "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  --rail-w: 64px;
+  --side-w: 320px;
+  --pad-x: 56px;
+  --pad-y: 40px;
+  --radius: 10px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+}
+
+.theme-light {
+  --canvas: #fafafb;
+  --surface: #ffffff;
+  --surface-hi: #f5f5f7;
+  --surface-active: #efeff2;
+  --border: rgba(10, 10, 15, 0.07);
+  --border-em: rgba(10, 10, 15, 0.10);
+  --border-strong: rgba(10, 10, 15, 0.18);
+  --hairline: rgba(10, 10, 15, 0.05);
+  --ink-1: #15151a;
+  --ink-2: #56565e;
+  --ink-3: #85858e;
+  --ink-4: #babac2;
+  --accent: #5b63d2;
+  --accent-soft: rgba(91, 99, 210, 0.12);
+}
+
+.density-compact {
+  --pad-x: 40px;
+  --pad-y: 28px;
+}
+
+.density-comfy {
+  --pad-x: 56px;
+  --pad-y: 40px;
+}
+
+.density-roomy {
+  --pad-x: 72px;
+  --pad-y: 56px;
+}

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;600&display=swap"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      ;(() => {
+        const theme = localStorage.getItem('henews-theme') || 'dark'
+        document.documentElement.style.colorScheme = theme
+        document.documentElement.dataset.theme = theme
+      })()
+    </script>
+    <title>HE News</title>
+  </head>
+  <body class="theme-dark density-compact">
+    <script>
+      ;(() => {
+        const theme = document.documentElement.dataset.theme || 'dark'
+        document.body.classList.remove('theme-dark', 'theme-light')
+        document.body.classList.add(`theme-${theme}`)
+      })()
+    </script>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

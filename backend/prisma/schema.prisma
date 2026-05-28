@@ -1,0 +1,176 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Game {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  iconUrl     String?
+  officialUrl String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sources      Source[]
+  articles     Article[]
+  redeemCodes  RedeemCode[]
+  versionPlans VersionPlan[]
+}
+
+model Source {
+  id                   String    @id @default(uuid())
+  gameId               String
+  name                 String
+  type                 String
+  url                  String
+  enabled              Boolean   @default(true)
+  crawlIntervalMinutes Int       @default(60)
+  lastCrawledAt        DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  game      Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  articles  Article[]
+  crawlLogs CrawlLog[]
+
+  @@index([gameId])
+}
+
+model Article {
+  id          String    @id @default(uuid())
+  gameId      String
+  sourceId    String
+  title       String
+  summary     String?
+  content     String?
+  url         String
+  coverUrl    String?
+  publishedAt DateTime?
+  category    String    @default("other")
+  contentHash String    @unique
+  isRead      Boolean   @default(false)
+  isFavorite  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  game        Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  source      Source       @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  redeemCodes RedeemCode[]
+
+  @@index([gameId])
+  @@index([sourceId])
+  @@index([category])
+  @@index([publishedAt])
+}
+
+model RedeemCode {
+  id          String    @id @default(uuid())
+  gameId      String
+  articleId   String?
+  code        String
+  description String?
+  expiredAt   DateTime?
+  status      String    @default("unused")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  game    Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  article Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+
+  @@unique([gameId, code])
+  @@index([gameId])
+  @@index([articleId])
+  @@index([status])
+}
+
+model CrawlLog {
+  id         String    @id @default(uuid())
+  sourceId   String
+  status     String
+  message    String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+model VersionPlan {
+  id           String    @id @default(uuid())
+  gameId       String
+  version      String
+  subtitle     String?
+  releaseAt    DateTime?
+  coverUrl     String?
+  officialUrl  String?
+  provider     String
+  providerUrl  String?
+  raw          String?
+  lastSyncedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  game    Game                 @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  banners VersionPlanBanner[]
+  events  VersionPlanEvent[]
+
+  @@unique([gameId, version])
+  @@index([gameId])
+  @@index([releaseAt])
+}
+
+model VersionPlanBanner {
+  id               String    @id @default(uuid())
+  planId           String
+  phase            Int
+  poolIndex        Int
+  poolName         String?
+  characterName    String?
+  characterRarity  Int?
+  characterPath    String?
+  characterElement String?
+  isNewCharacter   Boolean   @default(false)
+  lightConeName    String?
+  lightConeRarity  Int?
+  isNewLightCone   Boolean   @default(false)
+  startAt          DateTime?
+  endAt            DateTime?
+  rawTime          String?
+  rawRoleInfo      String?
+  rawConeInfo      String?
+
+  plan VersionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@index([phase])
+}
+
+model VersionPlanEvent {
+  id       String    @id @default(uuid())
+  planId   String
+  category String
+  name     String
+  label    String?
+  info     String?
+  startAt  DateTime?
+  endAt    DateTime?
+  imageUrl String?
+
+  plan VersionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@index([category])
+}
