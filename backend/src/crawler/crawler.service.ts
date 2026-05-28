@@ -356,6 +356,7 @@ export class CrawlerService {
     const channelIds = this.getMihoyoChannelIds(endpoint);
     const pageSize = this.getNumberParam(endpoint, 'iPageSize', 10, 1, 30);
     const lang = endpoint.searchParams.get('sLangKey') ?? 'zh-cn';
+    const newsBase = this.getMihoyoNewsBaseUrl(endpoint);
     const candidates: CrawledArticle[] = [];
     const seenIds = new Set<number>();
 
@@ -371,7 +372,7 @@ export class CrawlerService {
         endpoint.toString(),
         {
           headers: {
-            Referer: 'https://sr.mihoyo.com/news',
+            Referer: `${newsBase}/news`,
             'User-Agent':
               'HE-News/0.1 (+https://local.app; official-news-aggregator)',
           },
@@ -390,7 +391,7 @@ export class CrawlerService {
           continue;
         }
 
-        const article = this.toMihoyoArticle(item);
+        const article = this.toMihoyoArticle(item, newsBase, channelId);
 
         if (!article) {
           continue;
@@ -408,7 +409,41 @@ export class CrawlerService {
     });
   }
 
-  private toMihoyoArticle(item: MihoyoContentItem) {
+  /**
+   * 不同游戏的 content_v2_user API 用同一套，但每个 appId 对应不同的官网域名，
+   * 文章链接、Referer 都要按 appId 切换。这里按 source URL path 里的 appId
+   * 决定 news 落地页域名；未知 appId 兜底到星穹铁道（避免破坏既有 source）。
+   */
+  private getMihoyoNewsBaseUrl(endpoint: URL): string {
+    const appMatch = endpoint.pathname.match(
+      /\/content_v2_user\/app\/([0-9a-f]+)\//i,
+    );
+    const appId = appMatch?.[1];
+    const map: Record<string, string> = {
+      '1963de8dc19e461c': 'https://sr.mihoyo.com',
+      '706fd13a87294881': 'https://zzz.mihoyo.com',
+    };
+    return (appId && map[appId]) || 'https://sr.mihoyo.com';
+  }
+
+  /**
+   * ZZZ 等较新的游戏 sCategoryName 多半是空字符串，单靠 mapMihoyoCategory 会全部归
+   * 到 other。把抓取时的 channelId 作为兜底：278/资讯→other, 279/公告→announcement,
+   * 280/活动→event；星穹铁道的 256/257/258 同理。
+   */
+  private mapChannelToCategory(channelId: number): string | undefined {
+    const announcementChannels = new Set([257, 279]);
+    const eventChannels = new Set([258, 280]);
+    if (announcementChannels.has(channelId)) return 'announcement';
+    if (eventChannels.has(channelId)) return 'event';
+    return undefined;
+  }
+
+  private toMihoyoArticle(
+    item: MihoyoContentItem,
+    newsBase: string,
+    channelId: number,
+  ) {
     const title = this.normalizeText(item.sTitle ?? '');
 
     if (!title || !item.iInfoId) {
@@ -424,12 +459,14 @@ export class CrawlerService {
 
     return {
       title,
-      url: this.getMihoyoArticleUrl(item, ext),
+      url: this.getMihoyoArticleUrl(item, ext, newsBase),
       summary: this.truncate(summarySource, 280),
       content,
       coverUrl: this.getMihoyoCoverUrl(item, ext),
       publishedAt: this.parseMihoyoDate(item.dtStartTime),
-      category: this.mapMihoyoCategory(item.sCategoryName),
+      category:
+        this.mapMihoyoCategory(item.sCategoryName) ??
+        this.mapChannelToCategory(channelId),
     };
   }
 
@@ -486,6 +523,7 @@ export class CrawlerService {
   private getMihoyoArticleUrl(
     item: MihoyoContentItem,
     ext: MihoyoContentExt,
+    newsBase: string,
   ) {
     const directUrl = this.normalizeText(item.sUrl ?? '');
 
@@ -494,10 +532,10 @@ export class CrawlerService {
     }
 
     if (ext['news-self-path'] === 'public') {
-      return 'https://sr.mihoyo.com/news/public';
+      return `${newsBase}/news/public`;
     }
 
-    return `https://sr.mihoyo.com/news/${item.iInfoId}`;
+    return `${newsBase}/news/${item.iInfoId}`;
   }
 
   private getMihoyoCoverUrl(
