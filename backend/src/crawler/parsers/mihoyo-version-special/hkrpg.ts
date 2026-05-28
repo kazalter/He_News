@@ -1,61 +1,34 @@
-import axios from 'axios';
+/**
+ * 崩坏：星穹铁道版本前瞻专题 parser。
+ *
+ * 输入：`https://act.mihoyo.com/puzzle/hkrpg/eYYYYMMDD<slug>/index.html`
+ * 抓取：landing HTML → config.<hash>.js → mi18n key → mi18n JSON
+ * 输出：包含 `poolList_*` 卡池信息、`charList_*` 新角色、`coneList_*` 新光锥的
+ *      结构化 ParsedVersionPlan。
+ */
+import {
+  ParsedVersionBanner,
+  ParsedVersionEvent,
+  ParsedVersionPlan,
+  Mi18nPayload,
+  buildMi18nUrl,
+  collectListField,
+  extractConfigUrl,
+  extractMi18nKey,
+  extractVersionAndSubtitle,
+  fetchText,
+  parseMihoyoDateTime,
+  pickCoverUrl,
+  sameName,
+  stripHtml,
+  stripWhitespace,
+} from './shared';
 
-export type ParsedVersionBanner = {
-  phase: number;
-  poolIndex: number;
-  poolName?: string;
-  characterName?: string;
-  characterRarity?: number;
-  characterPath?: string;
-  characterElement?: string;
-  isNewCharacter: boolean;
-  lightConeName?: string;
-  lightConeRarity?: number;
-  isNewLightCone: boolean;
-  startAt?: Date;
-  endAt?: Date;
-  rawTime?: string;
-  rawRoleInfo?: string;
-  rawConeInfo?: string;
-};
+const MI18N_PREFIX = 'hkrpg_cn';
 
-export type ParsedVersionEvent = {
-  category: 'event' | 'other' | 'story';
-  name: string;
-  label?: string;
-  info?: string;
-};
-
-export type ParsedVersionPlan = {
-  version: string;
-  subtitle?: string;
-  coverUrl?: string;
-  officialUrl: string;
-  providerUrl: string;
-  releaseAt?: Date;
-  rawJson: string;
-  banners: ParsedVersionBanner[];
-  events: ParsedVersionEvent[];
-};
-
-type Mi18nPayload = Record<string, string>;
-
-const GAME_PREFIX: Record<string, string> = {
-  hkrpg: 'hkrpg_cn',
-  hk4e: 'hk4e_cn',
-  nap: 'nap_cn',
-  bh3: 'bh3_cn',
-};
-
-const USER_AGENT =
-  'HE-News/0.1 (+https://local.app; official-news-aggregator)';
-
-export async function parseMihoyoVersionSpecial(
+export async function parseHkrpgVersionSpecial(
   landingUrl: string,
 ): Promise<ParsedVersionPlan> {
-  const url = new URL(landingUrl);
-  const gameKey = detectGameKey(url);
-
   const landingHtml = await fetchText(landingUrl);
   const configUrl = extractConfigUrl(landingHtml, landingUrl);
   if (!configUrl) {
@@ -68,7 +41,7 @@ export async function parseMihoyoVersionSpecial(
     throw new Error('未在 config.js 中找到 mi18n key');
   }
 
-  const i18nUrl = `https://fastcdn.mihoyo.com/mi18n/${gameKey}/${mi18nKey}/${mi18nKey}-zh-cn.json`;
+  const i18nUrl = buildMi18nUrl(MI18N_PREFIX, mi18nKey);
   const i18nRaw = await fetchText(i18nUrl);
   const i18n = JSON.parse(i18nRaw) as Mi18nPayload;
 
@@ -115,75 +88,6 @@ function estimateReleaseAt(banners: ParsedVersionBanner[]): Date | undefined {
     return undefined;
   }
   return new Date(anchor.getTime() - 21 * 24 * 3600 * 1000);
-}
-
-function detectGameKey(landingUrl: URL): string {
-  const segments = landingUrl.pathname.split('/').filter(Boolean);
-  const puzzleIdx = segments.indexOf('puzzle');
-  if (puzzleIdx >= 0 && segments[puzzleIdx + 1]) {
-    const slug = segments[puzzleIdx + 1];
-    if (GAME_PREFIX[slug]) {
-      return GAME_PREFIX[slug];
-    }
-    return `${slug}_cn`;
-  }
-  return 'hkrpg_cn';
-}
-
-async function fetchText(url: string): Promise<string> {
-  const response = await axios.get<string>(url, {
-    headers: { 'User-Agent': USER_AGENT },
-    responseType: 'text',
-    timeout: 20000,
-    transformResponse: [(value: unknown) => value as string],
-  });
-  return response.data;
-}
-
-function extractConfigUrl(html: string, base: string): string | undefined {
-  const match = html.match(/src="([^"]+config\.[0-9a-f]+\.js)"/i);
-  if (!match) {
-    return undefined;
-  }
-  try {
-    return new URL(match[1], base).toString();
-  } catch {
-    return undefined;
-  }
-}
-
-function extractMi18nKey(configJs: string): string | undefined {
-  const match = configJs.match(/mi18n\s*:\s*\{[^}]*key\s*:\s*"([^"]+)"/);
-  return match?.[1];
-}
-
-function extractVersionAndSubtitle(i18n: Mi18nPayload): {
-  version: string;
-  subtitle?: string;
-} {
-  const title = i18n['baseinfo-title'] || i18n.share_title || '';
-  const match = title.match(/(\d+\.\d+)版本(?:「([^」]+)」)?/);
-  if (!match) {
-    throw new Error(
-      `无法从专题标题中识别版本号（baseinfo-title="${title}"）`,
-    );
-  }
-  return { version: match[1], subtitle: match[2] };
-}
-
-function collectListField(
-  i18n: Mi18nPayload,
-  prefix: string,
-): string[] {
-  const items: string[] = [];
-  for (let i = 1; i <= 20; i += 1) {
-    const value = i18n[`${prefix}${i}`];
-    if (typeof value !== 'string' || value.length === 0) {
-      continue;
-    }
-    items.push(value);
-  }
-  return items;
 }
 
 function parseBanners(
@@ -276,23 +180,6 @@ function parseBannerTime(time?: string): {
     startAt: parseMihoyoDateTime(halves[0]),
     endAt: parseMihoyoDateTime(halves[1]),
   };
-}
-
-function parseMihoyoDateTime(value: string): Date | undefined {
-  const match = value.match(
-    /(\d{4})\/(\d{1,2})\/(\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/,
-  );
-  if (!match) {
-    return undefined;
-  }
-  const [, y, m, d, hh, mm] = match;
-  const iso = `${y}-${pad(m)}-${pad(d)}T${pad(hh ?? '00')}:${pad(mm ?? '00')}:00+08:00`;
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-}
-
-function pad(value: string) {
-  return value.padStart(2, '0');
 }
 
 function parseLimitedCharacter(text?: string): {
@@ -390,35 +277,4 @@ function parseEvents(i18n: Mi18nPayload): ParsedVersionEvent[] {
   }
 
   return events;
-}
-
-function pickCoverUrl(i18n: Mi18nPayload): string | undefined {
-  const candidates = [
-    'pic_share',
-    'pic_share_bili',
-    'slg-src',
-    'wechart_share_img',
-  ];
-  for (const key of candidates) {
-    const value = i18n[key];
-    if (typeof value === 'string' && /^https?:\/\//.test(value)) {
-      return value;
-    }
-  }
-  return undefined;
-}
-
-function stripWhitespace(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
-}
-
-function stripHtml(value?: string): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-  return stripWhitespace(value.replace(/<[^>]+>/g, ' '));
-}
-
-function sameName(a: string, b: string): boolean {
-  return stripWhitespace(a) === stripWhitespace(b);
 }

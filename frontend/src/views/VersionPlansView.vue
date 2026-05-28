@@ -39,15 +39,15 @@ const phases = computed(() => {
 
 const eventGroups = computed(() => {
   if (!activePlan.value) {
-    return { event: [], story: [], other: [] }
+    return { event: [], story: [], other: [], character: [] }
   }
-  const buckets = { event: [], story: [], other: [] } as Record<
-    'event' | 'story' | 'other',
+  const buckets = { event: [], story: [], other: [], character: [] } as Record<
+    'event' | 'story' | 'other' | 'character',
     typeof activePlan.value.events
   >
   for (const event of activePlan.value.events) {
-    const key = (event.category as 'event' | 'story' | 'other') in buckets
-      ? (event.category as 'event' | 'story' | 'other')
+    const key = (event.category as 'event' | 'story' | 'other' | 'character') in buckets
+      ? (event.category as 'event' | 'story' | 'other' | 'character')
       : 'other'
     buckets[key].push(event)
   }
@@ -157,9 +157,13 @@ function formatBannerTime(startAt?: string | null, endAt?: string | null, raw?: 
               <dt>上线时间</dt>
               <dd>{{ formatDateTime(activePlan.releaseAt) ?? '待官方公告' }}</dd>
             </div>
-            <div>
+            <div v-if="activePlan.banners.length">
               <dt>卡池</dt>
               <dd>{{ activePlan.banners.length }}</dd>
+            </div>
+            <div v-else>
+              <dt>新角色</dt>
+              <dd>{{ eventGroups.character.length }}</dd>
             </div>
             <div>
               <dt>活动</dt>
@@ -181,6 +185,26 @@ function formatBannerTime(startAt?: string | null, endAt?: string | null, raw?: 
         </div>
         <div v-if="activePlan.coverUrl" class="version-hero__cover">
           <img :src="activePlan.coverUrl" :alt="activePlan.subtitle ?? activePlan.version" loading="lazy">
+        </div>
+      </section>
+
+      <section v-if="eventGroups.character.length" class="surface-panel">
+        <div class="panel-title">新角色</div>
+        <div class="character-grid">
+          <article
+            v-for="character in eventGroups.character"
+            :key="character.id"
+            class="character-card"
+            :style="{ '--c': gameColor(activePlan.game) }"
+          >
+            <div class="character-card__head">
+              <span class="character-card__name">{{ character.name }}</span>
+              <em class="badge-new">
+                <Star /> 新角色
+              </em>
+            </div>
+            <div v-if="character.label" class="character-card__faction">{{ character.label }}</div>
+          </article>
         </div>
       </section>
 
@@ -546,6 +570,42 @@ code {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
+  font-size: 11px;
+}
+
+.character-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.character-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--surface-hi);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--c, var(--accent));
+  border-radius: var(--radius-sm);
+}
+
+.character-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.character-card__name {
+  color: var(--ink-1);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.character-card__faction {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
   font-size: 11px;
 }
 

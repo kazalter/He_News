@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import Parser from 'rss-parser';
 import { ClassificationService } from '../classification/classification.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { parseMihoyoVersionSpecial } from './parsers/mihoyo-version-special.parser';
+import { parseMihoyoVersionSpecial } from './parsers/mihoyo-version-special';
 
 @Injectable()
 export class CrawlerService {
