@@ -164,7 +164,21 @@ export async function parseZzzNewsVersion(
       })),
     );
   }
-  const results = await Promise.all(detailFetches);
+  // 单独抓「情报总览」文章，从里面取本版本首发的 S 级代理人名单。
+  // 当前版本一直会有这篇，但万一缺失就保守地把所有 S 级当首发（旧行为）。
+  const intelOverviewDetailPromise: Promise<NewsDetail | undefined> =
+    intelOverview
+      ? fetchDetail(baseUrl, appId, intelOverview.iInfoId).catch(() => undefined)
+      : Promise.resolve(undefined);
+
+  const [results, intelOverviewDetail] = await Promise.all([
+    Promise.all(detailFetches),
+    intelOverviewDetailPromise,
+  ]);
+
+  const debutAgentNames = intelOverviewDetail
+    ? parseDebutAgentNames(htmlToText(intelOverviewDetail.sContent ?? ''))
+    : [];
 
   for (const { phase, kind, detail } of results) {
     const text = htmlToText(detail.sContent ?? '');
@@ -214,6 +228,9 @@ export async function parseZzzNewsVersion(
   }
 
   // 组卡池：每个 S 代理人配同位置的 S 音擎 → 一条 banner。
+  // 首发 / 复刻判定：banner 上的角色出现在 debutAgentNames（情报总览的「即将
+  // 登场」名单）里才算首发。debutAgentNames 解析失败时退化成"全部当首发"。
+  // 音擎走启发式：签名音擎跟首发角色绑定，复刻角色不带新音擎。
   const banners: ParsedVersionBanner[] = [];
   let poolIndex = 1;
   for (const phase of [1, 2] as const) {
@@ -221,6 +238,9 @@ export async function parseZzzNewsVersion(
     for (let i = 0; i < data.sAgents.length; i += 1) {
       const agent = data.sAgents[i];
       const engine = data.sEngines[i];
+      const isDebutCharacter =
+        debutAgentNames.length === 0 ||
+        debutAgentNames.some((n) => sameAgentName(n, agent.name));
       banners.push({
         phase,
         poolIndex,
@@ -231,10 +251,10 @@ export async function parseZzzNewsVersion(
         // ZZZ 用"特性"（命破/强攻/防护/支援/异常）描述战斗定位，
         // 复用 characterPath 字段（语义上对应星穹铁道的"命途"）。
         characterPath: agent.spec,
-        isNewCharacter: true,
+        isNewCharacter: isDebutCharacter,
         lightConeName: engine?.name,
         lightConeRarity: engine?.rarity,
-        isNewLightCone: true,
+        isNewLightCone: isDebutCharacter && !!engine,
         startAt: data.startAt,
         endAt: data.endAt,
         rawTime:
@@ -547,6 +567,36 @@ function parseActivities(text: string): ActivityInfo[] {
     out.push({ name: stripWhitespace(m[2]), label: m[1] });
   }
   return out;
+}
+
+/**
+ * 从「情报总览」文章正文里解析本版本首发的 S 级代理人名单。
+ *   "S级代理人「普罗米娅」「星徽·比利」即将登场"        → ['普罗米娅', '星徽·比利']
+ *   "S级代理人「普罗米娅」&「星徽·比利」即将登场"        → ['普罗米娅', '星徽·比利']
+ *   "S级代理人「普罗米娅」、「星徽·比利」即将登场"       → ['普罗米娅', '星徽·比利']
+ * 名单为空说明米哈游换措辞了或文章里只有图片没文字，调用方应保守处理。
+ */
+function parseDebutAgentNames(text: string): string[] {
+  // 用 [^「」即将]*? 当分隔符，把 &、顿号、和、与、空格等所有可能的连接词都吞掉，
+  // 同时禁止跨越 "即将" 这两个字以免误吞太多。
+  const sectionRe =
+    /S\s*级代理人((?:[^「」即将]*?「[^」]+」)+)[^「」即将]*?即将登场/;
+  const section = text.match(sectionRe);
+  if (!section) return [];
+  const out: string[] = [];
+  const re = /「([^」]+)」/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(section[1])) !== null) {
+    out.push(stripWhitespace(m[1]));
+  }
+  return out;
+}
+
+function sameAgentName(a: string, b: string): boolean {
+  // 容忍空白与中英文 & / 不同写法的差异。
+  const norm = (s: string) =>
+    stripWhitespace(s).replace(/[\s&＆]+/g, '');
+  return norm(a) === norm(b);
 }
 
 function parseMainStory(text: string): ActivityInfo | undefined {
