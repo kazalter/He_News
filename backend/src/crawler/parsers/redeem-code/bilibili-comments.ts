@@ -8,6 +8,8 @@
  *   3. 评论噪音极大，精度优先：码取 [A-Z0-9]{8,20} 且字母数字都有、排除 BV/av；
  *      保留条件 = 评论里出现「兑换码/口令/cdk」等关键词，或命中米哈游直播码的
  *      标准 12 位形态。点赞数当 confidence（高赞码更可信，留给上层排序/过滤）。
+ *   4. 命中 12 位标准形态的直播码寿命短（约 24h），打上 expiredAt 兜底，让过期
+ *      生命周期生效（详见 collectCodesFromReplies）。
  *
  * 召回不追求全（standalone 无关键词的非 12 位码会漏），那是聚合页(game8)的活；
  * 评论源补的是"社区贴得快"的时效。
@@ -25,6 +27,11 @@ const REPLY_API = 'https://api.bilibili.com/x/v2/reply';
 const MAX_PAGES = 3;
 
 const REDEEM_KEYWORDS = /兑换码|口令|礼包码|福利码|前瞻码|cdk/i;
+
+/** 米哈游前瞻/直播码的标准形态：12 位字母数字。 */
+const LIVESTREAM_CODE = /^[A-Z0-9]{12}$/;
+/** 直播码官方寿命：直播后约 24 小时失效。 */
+const LIVESTREAM_CODE_TTL_MS = 24 * 60 * 60 * 1000;
 
 interface BiliReply {
   content?: { message?: string };
@@ -89,9 +96,18 @@ export function parseBvid(url: string): string | null {
   return url.match(/BV[0-9A-Za-z]{10}/)?.[0] ?? null;
 }
 
-/** 纯函数：把一串评论（含二级）映射成去重后的码（带作者/点赞）。 */
+/**
+ * 纯函数：把一串评论（含二级）映射成去重后的码（带作者/点赞）。
+ *
+ * 12 位标准直播码寿命短（前瞻直播后约 24h 失效），但评论里抓不到确切死期，
+ * 这里用「发现时间 + 24h」兜底打上 expiredAt，让"即将过期/自动过期"对这类码
+ * 生效。锚在发现时间（而非直播时间）会偏宽，但失败方向安全——最坏让已死的码
+ * 多显示一会儿，绝不会把有效码提前判过期。非 12 位（版本/活动码）寿命不定，不推算。
+ * now 可注入，便于测试。
+ */
 export function collectCodesFromReplies(
   replies: BiliReply[],
+  now: Date = new Date(),
 ): ParsedRedeemCode[] {
   const byCode = new Map<string, ParsedRedeemCode>();
 
@@ -108,6 +124,9 @@ export function collectCodesFromReplies(
           code,
           description: uname ? `B站评论@${uname}` : 'B站评论',
           confidence: like,
+          ...(LIVESTREAM_CODE.test(code)
+            ? { expiredAt: new Date(now.getTime() + LIVESTREAM_CODE_TTL_MS) }
+            : {}),
         });
       }
     }

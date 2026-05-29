@@ -24,11 +24,13 @@ export class CreateSourceDto {
     'html',
     'steam',
     'bilibili',
+    'bilibili-comments',
     'weibo',
     'manual',
     'mihoyo-content-v2',
     'mihoyo-version-special',
     'mihoyo-zzz-news-version',
+    'game8-codes',
   ])
   type: string;
 

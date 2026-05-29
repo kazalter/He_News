@@ -46,6 +46,10 @@ describe('extractCodesFromComment', () => {
 });
 
 describe('collectCodesFromReplies', () => {
+  // 固定"现在"，让 12 位直播码的 expiredAt（now + 24h）可断言。
+  const NOW = new Date('2026-05-29T00:00:00.000Z');
+  const EXPECTED_EXPIRY = new Date('2026-05-30T00:00:00.000Z');
+
   it('扫一级 + 二级评论，去重，同码留高赞，带作者', () => {
     const replies = [
       {
@@ -68,20 +72,39 @@ describe('collectCodesFromReplies', () => {
       },
     ];
 
-    const result = collectCodesFromReplies(replies);
+    const result = collectCodesFromReplies(replies, NOW);
     const byCode = new Map(result.map((c) => [c.code, c]));
 
     expect(result).toHaveLength(2);
     // 同码 MS6DNVXLJJS5 出现在 like=10 和 like=99 两条，留高赞的（@乙）。
+    // 12 位标准直播码：打上 now + 24h 的 expiredAt。
     expect(byCode.get('MS6DNVXLJJS5')).toEqual({
       code: 'MS6DNVXLJJS5',
       description: 'B站评论@乙',
       confidence: 99,
+      expiredAt: EXPECTED_EXPIRY,
     });
     expect(byCode.get('ET7CNGFDDS6N')).toMatchObject({
       description: 'B站评论@丙',
       confidence: 5,
+      expiredAt: EXPECTED_EXPIRY,
     });
+  });
+
+  it('12 位直播码打 24h 过期，较短的关键词码（8–11 位）不推算', () => {
+    const replies = [
+      { content: { message: '兑换码 MS6DNVXLJJS5' }, like: 1 },
+      { content: { message: '口令码：HSRVER30A 限时' }, like: 1 },
+    ];
+
+    const byCode = new Map(
+      collectCodesFromReplies(replies, NOW).map((c) => [c.code, c]),
+    );
+
+    expect(byCode.get('MS6DNVXLJJS5')?.expiredAt).toEqual(EXPECTED_EXPIRY);
+    // 9 位版本/活动码寿命不定，不打 expiredAt。
+    expect(byCode.get('HSRVER30A')).toBeDefined();
+    expect(byCode.get('HSRVER30A')?.expiredAt).toBeUndefined();
   });
 });
 
