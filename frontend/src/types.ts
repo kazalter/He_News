@@ -62,13 +62,16 @@ export type RedeemCode = {
   id: string
   gameId: string
   articleId?: string | null
+  sourceId?: string | null
   code: string
   description?: string | null
+  reward?: string | null
   expiredAt?: string | null
   status: string
   createdAt: string
   updatedAt: string
   game?: Game
+  source?: Source | null
   article?: Article | null
 }
 

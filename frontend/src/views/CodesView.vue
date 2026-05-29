@@ -74,9 +74,12 @@ function selectGame(key: string) {
 }
 
 function parseRewards(code: RedeemCode) {
-  const text = code.description || code.article?.title || '官方兑换奖励'
+  // 聚合页码带结构化 reward（如 "Stellar Jade x100 Credit x50,000"），优先用它；
+  // 否则退回说明/来源文章标题。
+  const text =
+    code.reward || code.description || code.article?.title || '官方兑换奖励'
   return text
-    .split(/[·、，,]/)
+    .split(/[·、，,]|\s{2,}/)
     .map((part) => part.trim())
     .filter(Boolean)
     .slice(0, 3)
