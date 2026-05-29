@@ -31,6 +31,8 @@ export class CreateSourceDto {
     'mihoyo-version-special',
     'mihoyo-zzz-news-version',
     'game8-codes',
+    'kurogames-news',
+    'kurogames-version',
   ])
   type: string;
 

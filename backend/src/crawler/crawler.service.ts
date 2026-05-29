@@ -13,6 +13,8 @@ import {
 } from './mihoyo-games';
 import { parseMihoyoVersionSpecial } from './parsers/mihoyo-version-special';
 import { parseZzzNewsVersion } from './parsers/zzz-news-version';
+import { fetchKurogamesNews } from './parsers/kurogames-news';
+import { fetchKurogamesVersion } from './parsers/kurogames-version';
 import {
   ParsedRedeemCode,
   isRedeemCodeSource,
@@ -44,7 +46,8 @@ export class CrawlerService {
     try {
       if (
         source.type === 'mihoyo-version-special' ||
-        source.type === 'mihoyo-zzz-news-version'
+        source.type === 'mihoyo-zzz-news-version' ||
+        source.type === 'kurogames-version'
       ) {
         const summary = await this.crawlVersionSpecial(source);
         await this.prisma.source.update({
@@ -164,10 +167,7 @@ export class CrawlerService {
   }
 
   private async crawlVersionSpecial(source: Source) {
-    const parsed =
-      source.type === 'mihoyo-zzz-news-version'
-        ? await parseZzzNewsVersion(source.url)
-        : await parseMihoyoVersionSpecial(source.url);
+    const parsed = await this.parseVersionPlan(source);
 
     const plan = await this.prisma.versionPlan.upsert({
       where: {
@@ -181,7 +181,7 @@ export class CrawlerService {
         releaseAt: parsed.releaseAt ?? null,
         coverUrl: parsed.coverUrl ?? null,
         officialUrl: parsed.officialUrl,
-        provider: 'mihoyo-version-special',
+        provider: source.type,
         providerUrl: parsed.providerUrl,
         raw: parsed.rawJson,
         lastSyncedAt: new Date(),
@@ -193,7 +193,7 @@ export class CrawlerService {
         releaseAt: parsed.releaseAt ?? null,
         coverUrl: parsed.coverUrl ?? null,
         officialUrl: parsed.officialUrl,
-        provider: 'mihoyo-version-special',
+        provider: source.type,
         providerUrl: parsed.providerUrl,
         raw: parsed.rawJson,
         lastSyncedAt: new Date(),
@@ -242,6 +242,17 @@ export class CrawlerService {
       bannerCount: parsed.banners.length,
       eventCount: parsed.events.length,
     };
+  }
+
+  /** 按 source.type 选版本前瞻 parser：米哈游专题 / 绝区零新闻 / 鸣潮官网。 */
+  private parseVersionPlan(source: Source) {
+    if (source.type === 'mihoyo-zzz-news-version') {
+      return parseZzzNewsVersion(source.url);
+    }
+    if (source.type === 'kurogames-version') {
+      return fetchKurogamesVersion(source.url);
+    }
+    return parseMihoyoVersionSpecial(source.url);
   }
 
   private async crawlRedeemCodeSource(source: Source) {
@@ -325,6 +336,10 @@ export class CrawlerService {
 
     if (type === 'mihoyo-content-v2') {
       return this.fetchMihoyoContentV2(source);
+    }
+
+    if (type === 'kurogames-news') {
+      return fetchKurogamesNews(source.url);
     }
 
     if (
