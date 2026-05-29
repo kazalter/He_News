@@ -30,10 +30,17 @@ import {
   parseArticleMenu,
 } from '../kurogames-news';
 import {
+  findKurogamesGameByJsonBase,
   kurogamesArticleJsonUrl,
   kurogamesArticleMenuUrl,
   kurogamesArticlePageUrl,
 } from '../../kurogames';
+import {
+  GamekeeCardPool,
+  fetchGamekeeCardPools,
+  isLimitedNew,
+  isRerun,
+} from '../../gamekee';
 
 const USER_AGENT =
   'HE-News/0.1 (+https://local.app; official-news-aggregator)';
@@ -60,7 +67,7 @@ export async function fetchKurogamesVersion(
     { headers: { 'User-Agent': USER_AGENT }, timeout: 20000 },
   );
 
-  return parseVersionContent({
+  const plan = parseVersionContent({
     version: found.version,
     subtitle: found.subtitle,
     articleId: found.meta.articleId,
@@ -68,6 +75,84 @@ export async function fetchKurogamesVersion(
     contentHtml: detail?.articleContent ?? '',
     jsonBase,
   });
+
+  // 官方文章不带卡池时间，去 GameKee 按中文名补精确起止时间（best-effort）。
+  const alias = findKurogamesGameByJsonBase(jsonBase)?.gamekeeAlias;
+  if (alias) {
+    const pools = await fetchGamekeeCardPools(alias).catch(() => []);
+    if (pools.length) {
+      enrichBannerTimes(plan.banners, pools, plan.releaseAt);
+    }
+  }
+
+  return plan;
+}
+
+/**
+ * 用 GameKee 卡池数据按中文名给 banner 补 startAt/endAt（原地改）。
+ *   - 同名卡池可能跨多个版本（复刻角色），按 startAt 距本版本上线日 releaseAt 最近的挑；
+ *   - 顺带用 GameKee 的 限定/复刻 标签校准首发判定（比正文 ✦全新角色✦ 更权威）；
+ *   - 查不到的（如 GameKee 还没录入的最新一期）保持时间为空。
+ */
+export function enrichBannerTimes(
+  banners: ParsedVersionBanner[],
+  pools: GamekeeCardPool[],
+  releaseAt?: Date,
+): ParsedVersionBanner[] {
+  const byName = new Map<string, GamekeeCardPool[]>();
+  for (const pool of pools) {
+    const list = byName.get(pool.name) ?? [];
+    list.push(pool);
+    byName.set(pool.name, list);
+  }
+
+  for (const banner of banners) {
+    const name = banner.characterName?.trim();
+    if (!name) continue;
+    const candidates = byName.get(name);
+    if (!candidates?.length) continue;
+
+    const pool = pickClosest(candidates, releaseAt);
+    banner.startAt = pool.startAt;
+    banner.endAt = pool.endAt;
+    banner.rawTime = formatBeijingRange(pool.startAt, pool.endAt);
+    // 标签优先级高于正文：明确复刻就不是首发，明确限定就是首发。
+    if (isRerun(pool.tagIds)) banner.isNewCharacter = false;
+    else if (isLimitedNew(pool.tagIds)) banner.isNewCharacter = true;
+  }
+
+  return banners;
+}
+
+function pickClosest(
+  pools: GamekeeCardPool[],
+  releaseAt?: Date,
+): GamekeeCardPool {
+  if (!releaseAt) {
+    return pools.reduce((a, b) => (b.startAt > a.startAt ? b : a));
+  }
+  const target = releaseAt.getTime();
+  return pools.reduce((a, b) =>
+    Math.abs(b.startAt.getTime() - target) <
+    Math.abs(a.startAt.getTime() - target)
+      ? b
+      : a,
+  );
+}
+
+/** 按北京时间渲染成 "YYYY/MM/DD HH:MM ~ YYYY/MM/DD HH:MM"。 */
+function formatBeijingRange(start: Date, end: Date): string {
+  return `${formatBeijing(start)} ~ ${formatBeijing(end)}`;
+}
+
+function formatBeijing(date: Date): string {
+  const shifted = new Date(date.getTime() + 8 * 3600 * 1000);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(shifted.getUTCDate()).padStart(2, '0');
+  const hh = String(shifted.getUTCHours()).padStart(2, '0');
+  const mm = String(shifted.getUTCMinutes()).padStart(2, '0');
+  return `${y}/${m}/${d} ${hh}:${mm}`;
 }
 
 /** 从文章列表里挑版本号最高的「X.Y版本内容说明」。 */
@@ -270,4 +355,5 @@ export const __testables = {
   parseEvents,
   parseVersionContent,
   extractContent,
+  enrichBannerTimes,
 };

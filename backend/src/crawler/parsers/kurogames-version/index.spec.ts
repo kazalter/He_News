@@ -17,8 +17,11 @@ import {
   parseNewNames,
   parseEvents,
   parseVersionContent,
+  enrichBannerTimes,
 } from './index';
 import type { KuroArticleMeta } from '../kurogames-news';
+import type { GamekeeCardPool } from '../../gamekee';
+import type { ParsedVersionBanner } from '../mihoyo-version-special/shared';
 
 const CONTENT = `
 <div><img src="https://cdn.example.com/3-3-cover.jpg" alt=""></div>
@@ -147,5 +150,71 @@ describe('parseVersionContent（整篇装配）', () => {
     const raw = JSON.parse(plan.rawJson);
     expect(raw.newCharacters).toEqual(['绯雪']);
     expect(raw.weapons).toEqual(['灼霜', '赝作的矮星']);
+  });
+});
+
+describe('enrichBannerTimes（GameKee 补时间）', () => {
+  const banner = (
+    name: string,
+    isNew: boolean,
+  ): ParsedVersionBanner => ({
+    phase: 1,
+    poolIndex: 1,
+    characterName: name,
+    isNewCharacter: isNew,
+    isNewWeapon: false,
+  });
+
+  const pool = (
+    name: string,
+    startIso: string,
+    endIso: string,
+    tagIds: number[],
+  ): GamekeeCardPool => ({
+    name,
+    startAt: new Date(startIso),
+    endAt: new Date(endIso),
+    tagIds,
+  });
+
+  it('按中文名补 startAt/endAt + rawTime', () => {
+    const banners = [banner('绯雪', true)];
+    enrichBannerTimes(banners, [
+      pool('绯雪', '2026-04-30T03:00:00Z', '2026-05-21T01:59:00Z', [12]),
+    ]);
+    expect(banners[0].startAt?.toISOString()).toBe('2026-04-30T03:00:00.000Z');
+    expect(banners[0].endAt?.toISOString()).toBe('2026-05-21T01:59:00.000Z');
+    expect(banners[0].rawTime).toBe('2026/04/30 11:00 ~ 2026/05/21 09:59');
+  });
+
+  it('同名跨版本时，挑 startAt 距 releaseAt 最近的那期', () => {
+    const banners = [banner('今汐', false)];
+    const release = new Date('2026-04-30T03:00:00Z');
+    enrichBannerTimes(
+      banners,
+      [
+        pool('今汐', '2024-06-27T03:00:00Z', '2024-07-17T03:00:00Z', [12]), // 首发，久远
+        pool('今汐', '2026-04-30T03:00:00Z', '2026-05-21T01:59:00Z', [11]), // 本次复刻
+      ],
+      release,
+    );
+    expect(banners[0].startAt?.toISOString()).toBe('2026-04-30T03:00:00.000Z');
+  });
+
+  it('GameKee 标签校准首发/复刻：复刻标签把 isNewCharacter 拉回 false', () => {
+    const banners = [banner('达妮娅', true)]; // 正文误判成首发
+    enrichBannerTimes(banners, [
+      pool('达妮娅', '2026-05-21T02:00:00Z', '2026-06-07T03:59:00Z', [11]),
+    ]);
+    expect(banners[0].isNewCharacter).toBe(false);
+  });
+
+  it('GameKee 查不到的卡池，时间保持为空（优雅降级）', () => {
+    const banners = [banner('未来角色', true)];
+    enrichBannerTimes(banners, [
+      pool('别的角色', '2026-04-30T03:00:00Z', '2026-05-21T01:59:00Z', [12]),
+    ]);
+    expect(banners[0].startAt).toBeUndefined();
+    expect(banners[0].endAt).toBeUndefined();
   });
 });

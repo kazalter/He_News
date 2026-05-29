@@ -18,6 +18,8 @@ export type KurogamesGameConfig = {
   jsonBase: string;
   /** 官网域名，拼文章可读链接用，结尾不带斜杠。 */
   siteBase: string;
+  /** GameKee wiki 的 game-alias，用来补卡池精确时间（官方文章不带时间）。 */
+  gamekeeAlias?: string;
 };
 
 export const KUROGAMES_GAMES: KurogamesGameConfig[] = [
@@ -27,6 +29,7 @@ export const KUROGAMES_GAMES: KurogamesGameConfig[] = [
     jsonBase:
       'https://media-cdn-mingchao.kurogame.com/akiwebsite/website2.0/json/G152/zh',
     siteBase: 'https://mc.kurogames.com',
+    gamekeeAlias: 'mc',
   },
 ];
 
