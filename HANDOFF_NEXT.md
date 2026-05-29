@@ -1,65 +1,69 @@
 # 下一轮 Claude 接力说明（HE_News，Windows）
 
-> 这一轮把绝区零接进版本计划 + 资讯流，并做了一次架构审计。下一轮的目标是按
-> 审计 backlog 修架构债，让加新游戏不再痛苦。本文档假设你刚开一个新的 Claude
-> 会话、只能 Read 这份 md 起手 —— 写得**自包含**，没读过上一轮也能续。
+> 上一轮（本文档此版本写于其后）按 ROI 清了一批架构债：banner 字段去黑话、游戏
+> 知识点收拢进注册表、加了定时调度器、给 ZZZ parser 补了回归测试。下一轮主要剩
+> P0 的两个功能小修 + 几个 bug。本文档假设你刚开一个新 Claude 会话、只能 Read
+> 这份 md 起手 —— 写得**自包含**，没读过上一轮也能续。
 
 ## 1. 仓库与开发环境
 
-- 工作目录：`C:\Users\25768\Desktop\HE_News_repo`（已初始化 git，clone 自
-  `github.com/kazalter/He_News`）。
-- 老的 `C:\Users\25768\Desktop\HE_News` 是上一轮迁移前的旧目录壳，内容已清空，
-  但 Windows 文件句柄锁着删不掉 —— 不用管，重启后用户自删。**所有命令都对
-  HE_News_repo 操作，不要碰 HE_News**。
-- Windows + PowerShell 5.1（不要 cd && 串）。具体 shell 路由策略见全局
-  `~/.claude/CLAUDE.md`（pwsh 7 已装，需要 `&&` / 三元 / UTF-8 时走 pwsh）。
-- Node.js 24.15 已装。**包管理器是 npm**（项目里 lockfile 是
-  `package-lock.json`，不是 pnpm；handoff_zzz.md 里写 pnpm 是 Linux 那边的
-  习惯，别照搬）。
-- git identity 在 Windows 这边没配。提交时**临时**用 `git -c user.name=huangyunhe
-  -c user.email=huangyunhe233@gmail.com commit ...`（不要写 global config）。
+- 工作目录：`C:\Users\25768\Desktop\HE_News`（已初始化 git）。
+  **注意**：更早的 handoff 里写过一个 `HE_News_repo`，那是某轮迁移设想，实际并不
+  存在；活跃仓库就是 `HE_News` 本身，所有命令都对它操作。
+- 远端：`origin = https://github.com/kazalter/He_News.git`。
+- Windows + PowerShell 5.1（不要 `cd dir && cmd` 串，Git Bash 那套 PATH 缺
+  `tail`/`cat`）。需要 `&&` / 三元 / UTF-8 / 复杂管道时走 pwsh 7（已装，PATH 里
+  `pwsh` 直调）。具体 shell 路由见全局 `~/.claude/CLAUDE.md`。
+- Node.js 24.15 已装。**包管理器是 npm**（lockfile 是 `package-lock.json`）。
+- git identity 在 Windows 这边没配。提交时**临时**带
+  `git -c user.name=huangyunhe -c user.email=huangyunhe233@gmail.com commit ...`
+  （不要写 global config）。
 - 本地 dev：后端 `npm --prefix backend run start:dev`（3000），前端
-  `npm --prefix frontend run dev -- --host 127.0.0.1`（5173）。或者一键
-  `scripts/start-dev.ps1` / `start-dev.bat`。
+  `npm --prefix frontend run dev -- --host 127.0.0.1`（5173）。或 `scripts/start-dev.ps1`。
+- 测试：`npm --prefix backend test`（jest，单测在 `src/**/*.spec.ts`）。
+  `npm --prefix backend run build`（nest build）/ `npm --prefix frontend run build`
+  （vue-tsc + vite，前端 build 里 @vueuse 的 PURE-annotation 警告是噪音，忽略）。
 
-## 2. 这一轮做完的事（git log）
+## 2. git log（main 领先 origin/main 11 个提交，**全部本地、没 push**）
 
 ```
+713b987 给 ZZZ 新闻 parser 加回归测试，措辞一变就报错          ← 本轮 #8
+98f04c3 加定时调度器，让 crawlIntervalMinutes 真正生效         ← 本轮 #1
+2f61483 游戏知识点收拢到注册表，加新游戏不再改一堆地方          ← 本轮 #5（含 #3）
+4613592 版本计划 banner 字段去掉「光锥」黑话，统一改成中性的 weapon*  ← 本轮 #7
+e648b2f docs: 写下一轮接力说明（HANDOFF_NEXT）
 34e9ae3 绝区零 A 级代理人不再被误标为「新角色」
 f0df93b 版本计划 banner 标签按游戏切换：星穹铁道叫光锥，绝区零叫音擎
 c34d94b 绝区零（ZZZ）首发/复刻判定，不再全部都是新角色
 01ad469 绝区零（ZZZ）资讯接入 + 修复 content_v2 域名硬编码
 764c40c 绝区零（ZZZ）改走新闻 API，取得完整卡池/角色/音擎/时间
 72481a1 绝区零（ZZZ）版本前瞻初步接入
-2497663 docs: 添加绝区零（ZZZ）交接说明      ← 这份是 Linux 上一轮的，已过期
-9c93e2b 初始提交：游戏资讯聚合 HE_News
+（再往下是 docs 和初始提交）
 ```
 
-工作树干净（`git status` 无变更）。`main` 与 `origin/main` 是否同步：**上一轮所有
-ZZZ 提交都是本地的，没 push**。要不要 push 由用户决定。
+要不要 push 由用户决定。
 
-## 3. 当前数据状态（用户在浏览器看到的）
+## 3. 当前数据状态
 
-通过 `node` 直连 Prisma 审计（脚本是临时的，跑完即删）：
+下面是**上一轮审计快照**（本轮没重新跑 Prisma 审计，但加了调度器后数据可能已经
+被自动抓取刷新过——见下方「调度器」提醒）。Schema 这轮唯一变化是 banner 的
+`lightCone* → weapon*` 改名（数据原地保留，没丢）。
 
 ```
-Games: 2     Sources: 3     Articles: 72
-Plans: 2     Banners: 8     Events: 18     Codes: 0
-
 崩坏：星穹铁道 (honkai-star-rail)
-  Sources (1):
-    [mihoyo-content-v2] 星穹铁道官网资讯
-      channels=256,257,258
-  Articles: 30  (announcement 1 / event 7 / other 7 / preview 6 / redeem_code 5 / update 4)
-  VersionPlans: 1  → 4.3「沉于生者的忘川」 banners=4 events=11
+  Sources (1): [mihoyo-content-v2] channels=256,257,258
+  VersionPlans: 1 → 4.3「沉于生者的忘川」 banners=4 events=11
+  （这份 4.3 是 Linux 上 seed 的「标本」，没有 version-special source，见 backlog #2）
 
 绝区零 (zenless-zone-zero)
   Sources (2):
-    [mihoyo-zzz-news-version] 绝区零·版本卡池（新闻 API）   iChanId=278
-    [mihoyo-content-v2]       绝区零·官网资讯              channels=278,279,280
-  Articles: 42  (announcement 1 / event 20 / other 9 / preview 2 / update 10)
-  VersionPlans: 1  → 2.8「新·艾利都日落时」 banners=4 events=7
+    [mihoyo-zzz-news-version] 绝区零·版本卡池（新闻 API）  iChanId=278
+    [mihoyo-content-v2]       绝区零·官网资讯             channels=278,279,280
+  VersionPlans: 1 → 2.8「新·艾利都日落时」 banners=4 events=7
 ```
+
+> **dev.db 在 .gitignore 里**，clone 不带数据。要本地数据：`npx prisma migrate dev`
+> 建空库，或从有数据的目录拷 dev.db（schema 一致才行）。
 
 ## 4. 关键架构概念（10 秒过一遍）
 
@@ -71,167 +75,108 @@ Source ─crawl→ VersionPlan      ：mihoyo-version-special、mihoyo-zzz-news-
 后端 NestJS + Prisma + SQLite。前端 Vue3 + Pinia + Element Plus + Vite。
 
 `backend/src/crawler/`：
-- `crawler.service.ts`：分派入口。按 `source.type` 选 fetcher / parser；upsert
-  Article / VersionPlan / Banner / Event。
-- `parsers/mihoyo-version-special/`：HSR + ZZZ 首页 mi18n（puzzle 落地页）。dispatch 在
-  `index.ts`，按 URL host/path 路由到 `hkrpg.ts` 或 `nap.ts`。
-- `parsers/zzz-news-version/`：ZZZ 新闻 API parser。**真正在用的 ZZZ 卡池数据来源**。
-  靠正则解析中文公告文本，详见文件顶部注释。
+- `crawler.service.ts`：分派入口。按 `source.type` 选 fetcher/parser；upsert
+  Article / VersionPlan / Banner / Event。content_v2 的 appId→域名/默认频道现在
+  走 `mihoyo-games.ts` 注册表（未知 appId 直接 throw，不再静默兜底成星铁）。
+- `mihoyo-games.ts` ⭐**新（本轮 #5）**：米哈游 content_v2 逐游戏配置
+  （appId / newsBaseUrl / defaultChannels）。加米哈游游戏 = 加一条。
+- `crawler.scheduler.ts` ⭐**新（本轮 #1）**：`@nestjs/schedule`，每分钟扫一遍
+  enabled 的 source，把 `now - lastCrawledAt >= crawlIntervalMinutes` 的串行抓一次。
+  `ScheduleModule.forRoot()` 注册在 `app.module.ts`。
+- `parsers/mihoyo-version-special/`：HSR + ZZZ 首页 mi18n（puzzle 落地页）。
+  `shared.ts` 里 `ParsedVersionBanner` 类型字段是 `weaponName/weaponRarity/isNewWeapon`。
+- `parsers/zzz-news-version/`：ZZZ 新闻 API parser（**真正在用的 ZZZ 卡池来源**）。
+  靠正则吃中文公告。`index.spec.ts` ⭐**新（本轮 #8）**用 mock axios + 代表性样本
+  钉死了它的解析行为，导出了 `__testables`（仅供单测）。
 
-前端 `frontend/src/utils/gameMeta.ts`：游戏 key/中文名/颜色/武器叫法的注册中心。
-现有 7 个 key：`genshin / hsr / zzz / wuwa / ark / r1999 / bluearchive`。
+前端 `frontend/src/utils/gameMeta.ts` ⭐**本轮 #5 重构成单一注册表**：每个游戏一条
+`gameMetas` 记录，含 key/中文名/颜色/`weapon`（武器叫法）/`keywords`（识别关键词），
+`resolveGameKey` / `weaponLabel` / `gameKeys` 全从它派生。**加一个游戏 = 加一条**
+（颜色不用再动 tokens.css，那里的 `--game-*` 死变量已删）。非米哈游游戏（如鸣潮）
+还要新 source type + fetcher + parser。
 
-## 5. 待办 Backlog（按优先级，已审计过）
+## 5. 待办 Backlog（已审计；本轮完成项打了 ✅）
 
-> 这是这一轮最后一步审计的结论。下一轮可以直接照着挑做。
-> ROI 排序：`#5 架构抽象 > #1 调度器 > #8 测试`。
+### P0 · 功能性问题
 
-### P0 · 功能性问题（影响日常使用）
+- ✅ **#1 定时调度器** —— 已加（`98f04c3`）。
+- **#2 HSR 缺 version-special source** —— HSR 只有一条 content_v2 资讯 source，没有
+  任何 version-special，4.3 数据是「标本」不会刷新。
+  修：给 HSR 加 `mihoyo-version-special` source（当前版本前瞻专题 URL），或为 HSR
+  写 news-API 版（appId `1963de8dc19e461c`，已在 mihoyo-games.ts 登记）。
+- ✅ **#3 channel 默认是 HSR 频道** —— 已随 #5 修掉（缺 channels 时按 source 自己
+  的 appId 从注册表取默认频道；未知 appId 直接 throw）。
+- **#4 兑换码提取规则太严，几乎从不出码** —— HSR/ZZZ 有 redeem_code 文章但
+  `RedeemCode` 表 0 条。`classification.service.ts` 的 `hasRedeemCodeContext` 要求码
+  前后 160 字符内出现「兑换码|礼包码」等关键词，米哈游排版常常隔太远。
+  修：窗口放到 400–500 字符；或 category 已是 redeem_code 时直接放宽。
 
-**#1. 没有 scheduler，`crawlIntervalMinutes` 是装饰**
-- 字段存在但代码库零调度器（没装 `@nestjs/schedule`）。所有更新只在手动 POST
-  `/api/sources/:id/crawl` 时发生。
-- 修：`npm i @nestjs/schedule`，在 `crawler/` 下新建 `CrawlerScheduler`，每分钟扫
-  `enabled=true && now - lastCrawledAt >= crawlIntervalMinutes * 60s` 的 source，
-  串行调 `CrawlerService.crawlSource(id)`。注意 Windows nest start:dev 子进程
-  退出问题（`main.ts` 已经有 `enableShutdownHooks` + SIGINT/SIGTERM 处理）。
+### P1 · 架构债
 
-**#2. HSR 缺 version-special source**
-- HSR 只有一条 mihoyo-content-v2 资讯 source，**没有任何 version-special**。
-- 现在 HSR 的 4.3 数据是 Linux 上 seed 的"标本"，`lastSyncedAt=2026-05-27`，
-  从此再不刷新。
-- 修：给 HSR 加 `mihoyo-version-special` source（URL 是当前版本前瞻专题，比如
-  `https://act.mihoyo.com/puzzle/hkrpg/eXXXXXX/index.html`）。或者更通用——为
-  HSR 也写 news-API 版（appId 是 `1963de8dc19e461c`）。
-
-**#3. `getMihoyoChannelIds` 默认是 HSR 频道**
-- [`crawler.service.ts:480`](backend/src/crawler/crawler.service.ts) 没 `channels=` 参数时
-  fallback `[256, 257, 258]`。新游戏接入忘写 channels 会查到 HSR 数据。
-- 修：缺 channels 直接 throw；或按 appId 派生默认。
-
-**#4. 兑换码提取规则太严，几乎从不出码**
-- HSR 5 篇文章被分类为 `redeem_code`，但 `RedeemCode` 表 **0 条**。ZZZ 同。
-- `classification.service.ts` 的 `hasRedeemCodeContext` 要求码前后 160 字符内出现
-  "兑换码|礼包码|..." 关键词，米哈游公告排版常常码和说明隔太远。
-- 修：把窗口放到 400-500 字符；或者当文章 category 已经是 redeem_code 时直接放宽。
-
-### P1 · 架构债（加新游戏前应该解）
-
-**#5. ⭐ 游戏知识点散落 7 处** — 加一个鸣潮要改：
-
-| 文件 | 改什么 |
-|---|---|
-| `backend/src/crawler/crawler.service.ts:~493` | `getMihoyoNewsBaseUrl` appId → 域名 |
-| `frontend/src/utils/gameMeta.ts:3-22` | `gameKeys` + `gameMetas` |
-| `frontend/src/utils/gameMeta.ts:25-35` | `resolveGameKey` 关键词分支 |
-| `frontend/src/utils/gameMeta.ts:61-66` | `WEAPON_TERMS`（光锥/音擎/武器） |
-| `frontend/src/styles/tokens.css:24-30` | `--game-<key>` 颜色 |
-| `backend/src/sources/dto/create-source.dto.ts:22-32` | source type 白名单 |
-| `frontend/src/views/SourcesView.vue:25-27` | source type 下拉 |
-
-**+ 写一个新 parser**（每个游戏数据源结构都不一样）。
-
-- 修法（推荐）：搞一个 `games-registry`（前后端各一份或共享 npm 包），entry 形如：
-  ```typescript
-  { key: 'zzz', name: '绝区零', color: '#c7a547', weapon: '音擎',
-    keywords: ['zzz','zenless','绝区'],
-    mihoyo: { appId: '706fd13a87294881', newsBaseUrl: 'https://zzz.mihoyo.com',
-              channels: { news: 278, announce: 279, event: 280 } } }
-  ```
-  以后加游戏 = 加一行 + 写 parser。
-
-**#6. Source type 白名单要爆炸**
-- 现 9 个；ZZZ 单独占了 `mihoyo-zzz-news-version`。原神/鸣潮再来还要新增。
-- 修：把所有 mihoyo 旁支合并到 `mihoyo-version-special`，dispatch 内部按 URL
-  自动选 parser（首页 mi18n / news API / puzzle 页 等）。对外只暴露一个 type。
-
-**#7. Schema 字段名是 HSR 黑话**
-- `VersionPlanBanner.lightConeName/Rarity/isNewLightCone` 字面就是"光锥"。ZZZ
-  写音擎进去能用但语义别扭。
-- 修：`prisma migrate` 迁成 `weaponName / weaponRarity / isNewWeapon`，全局 rename。
-  当前提交少，越早做越轻。
-
-**#8. ZZZ news-version parser 整个吃中文措辞**
-- 全靠正则 `X.Y版本内容一览（上/下期）` + `S级代理人「X」「Y」即将登场`。1.0–2.8
-  这个模板没变，但米哈游某次换栏目名就会 silently 全空。
-- 修：
-  1. 把 [`backend/test/fixtures/zzz-v2.8-mi18n-zh-cn.json`](backend/test/fixtures/) 旁
-     补 4 篇文章 JSON（contentShangqi/Xiaqi/gachaShangqi/Xiaqi 各 1 份），
-  2. 写 jest 单测覆盖 `parseDebutAgentNames` / `parseAgents` / `parseEngines` /
-     `parseTimeRange` 等。崩了能立刻知道。
+- ✅ **#5 游戏知识点散落** —— 已收拢进前后端注册表（`2f61483`）。
+- **#6 Source type 白名单要爆炸** —— 现有 9 个，ZZZ 单独占了
+  `mihoyo-zzz-news-version`。修：把所有 mihoyo 旁支合并到 `mihoyo-version-special`，
+  dispatch 内部按 URL 自动选 parser，对外只暴露一个 type。涉及
+  `sources/dto/create-source.dto.ts` 白名单 + `frontend/src/views/SourcesView.vue` 下拉。
+- ✅ **#7 Schema 字段名是 HSR 黑话** —— 已 rename 成 `weapon*`（`4613592`）。
+- ✅ **#8 ZZZ parser 整个吃中文措辞** —— 已补回归测试（`713b987`）。
 
 ### P2 · Bug / 小毛病
 
-**#9. `findRelevantArticles` 有个永远为 true 的判断**
-- [`zzz-news-version/index.ts:468-473`](backend/src/crawler/parsers/zzz-news-version/index.ts)：
-  ```typescript
-  it.sTitle.includes(`${version} 版本`) ===
-    it.sTitle.includes(`${version} 版本`)   // ← A === A 恒真
-  ```
-  intent 是"标题包含 X.Y 版本字样"，结果是恒真。当前没事是因为第一页只有 2.8 的
-  情报总览，但版本切换时会拾到旧版本的，subtitle/cover 串味。
-- 修：单边 `it.sTitle.includes(`${version}`) && it.sTitle.includes('版本')`。
-
-**#10. e2e 测试是 nest cli 默认模板**
-- `backend/test/app.e2e-spec.ts` 期望 `GET /` 返回 `"Hello World!"`，但 app 没这条
-  路由。`npm run test:e2e` 跑必挂。从未跑过所以没人发现。
-- 修：删掉，或改成测真实端点（如 `GET /api/games` 返回 200）。
-
-**#11. `mihoyo-version-special` 现在没人用**
-- 两个游戏都不指向它。dispatch 还在但实际无源。
-- 修：要么删（同时把 `parsers/mihoyo-version-special/` 整个删，nap.ts 已被
-  zzz-news-version 取代），要么留作文档示例。注意 `hkrpg.ts` 还能用，HSR 接
-  version-special 时会用上 —— 别误删。
-
-**#12. ZZZ phase 1 A 级代理人丢了**
-- 2.8 的「2.8版本限时频段（上期）」文章已经被推下 page 1。parser 只翻 2 页，找不到。
-  现在 UI 只看到 phase 2 的 A 级（潘引壶、狛野真斗），phase 1 的看不到。
-- 修：用 sTitle 精确搜索时按需翻更多页；或接受"过版本中段时旧期数据不可达"。
-
-**#13. 分类器对版本卡池文章分得乱**
-- "2.8版本限时频段（下期）" → `event`（关键词"限时"先匹中），但语义是 `preview`。
-- 修：分类器加一条 `'限时频段' → preview`，或 `'版本' && '频段' → preview`，
-  注意顺序放在 `'活动'`/`'限时'` 之前。
+- **#9 `findRelevantArticles` 有个永远为 true 的判断** —— `zzz-news-version/index.ts`
+  里 intelOverview 检测写成 `A.includes(x) === A.includes(x)`（恒真），intent 是
+  「标题含 X.Y 版本字样」。当前没事是因为第一页只有 2.8，版本切换时会拾到旧版本的、
+  subtitle/cover 串味。修：单边 `it.sTitle.includes(version) && it.sTitle.includes('版本')`。
+- **#10 e2e 测试是 nest cli 默认模板** —— `backend/test/app.e2e-spec.ts` 期望
+  `GET /` 返回 `"Hello World!"`，但没这条路由，`npm run test:e2e` 跑必挂（`npm test`
+  不受影响，rootDir 是 src 不含它）。修：删掉或改成测真实端点（如 `GET /api/games`）。
+- **#11 `mihoyo-version-special` 现在没人用** —— 两个游戏都不指向它，dispatch 还在
+  但无源。`hkrpg.ts` 留着 HSR 接 version-special（#2）时会用上，别误删；可删的是
+  `nap.ts`（已被 zzz-news-version 取代）。
+- **#12 ZZZ phase 1 A 级代理人丢了** —— parser 只翻 2 页，过版本中段时旧期数据被推
+  下 page 1 就找不到。修：按 sTitle 精确搜索时按需翻更多页，或接受不可达。
+- **#13 分类器对版本卡池文章分得乱** —— 「2.8版本限时频段（下期）」被分成 event
+  （「限时」先匹中），语义应是 preview。修：分类器加 `'限时频段' → preview`，放在
+  `'活动'`/`'限时'` 之前。
 
 ### P3 · 想做也行
 
-- ZZZ S 级代理人 rarity 写死 5，A 级 4。ZZZ 没有星级（用 S/A/B 等级），但
-  5★ 显示已成习惯。要纯净的话改成 `characterGrade: 'S' | 'A' | 'B'`，前端
-  按游戏 key 渲染成"5★"或"S 级"。
-- ZZZ 频道 `VERSION_INFO=783` 抓到但没用上，实测只有 1 篇 2024 年存货，丢了无妨。
-- README/PROJECT_PLAN 没更新，新加的两个 source type、frontend
-  weaponLabel/ZZZ 接入都没写进 docs。
+- ZZZ S 级代理人 rarity 写死 5、A 级 4。ZZZ 没星级（用 S/A/B 等级），要纯净的话改
+  `characterGrade` 前端按游戏渲染成「5★」或「S 级」。
+- README/PROJECT_PLAN 没更新两个新 source type、weapon* rename、注册表、调度器。
 
 ## 6. Pitfalls / 容易踩的坑
 
-1. **不要在 Bash 工具里 `cd dir && cmd`**，那是 Git Bash 但 PATH 缺 `tail`/`cat`
-   等 GNU utils。后台跑 npm 用 `npm --prefix <path> run ...`，或直接调 PowerShell
-   工具。
-2. **不要假设 dev server 在跑**。这一轮起手测的时候用户说"跑起来了"但端口 3000
-   实际是空的（他在老目录里起的）。重要操作前 `curl localhost:3000/api/games`
-   先验证。
-3. **dev.db 在 .gitignore 里**，clone 仓库不会带数据。需要本地数据时要么用
-   `npx prisma migrate dev` 初始化空库，要么从有数据的旧目录拷 dev.db 过来
-   （Schema 一致才行）。
-4. **修 parser 后**：先 `npm --prefix backend run build` 验证 TS 通过，再用
-   "起一个临时 Nest application context 调 CrawlerService" 的脚本 reseed
-   （上一轮用过这套，写完即删；模板见上一轮 commit history 里的零散脚本）。
-5. **Windows git autocrlf 警告**："LF will be replaced by CRLF" 是正常的，
-   忽略即可。不是 bug。
-6. **commit message 用中文**，遵循现有风格（短标题 + 空行 + 段落 + 末尾
+1. **不要在 Bash 工具里 `cd dir && cmd`**（Git Bash PATH 缺 GNU utils）。后台跑 npm
+   用 `npm --prefix <path> run ...`。注意 Bash 工具的 cwd 会在命令间保持。
+2. ⭐ **现在起 dev server = 会自动抓取**。加了调度器后，`start:dev` 起来约一分钟内
+   就会对「到点」的 source 跑真实抓取（命中线上米哈游 + 写库）。本轮没端到端跑过
+   一次真实 tick（只验证了 cron 已注册、DI 干净），第一次真跑就在下次 start:dev。
+3. **dev.db 在 .gitignore**，clone 不带数据（见 §3）。
+4. **改 Prisma schema 做字段 rename**：`prisma migrate dev` 的自动 diff 会判成
+   drop+add **丢数据**（且非交互环境直接报错）。要保数据就**手写迁移**用
+   `ALTER TABLE ... RENAME COLUMN`，再 `prisma migrate deploy` + `prisma generate`。
+   本轮 #7 就是这么做的，参考 `migrations/20260529120000_rename_lightcone_to_weapon/`。
+   动 db 前先 `cp dev.db dev.db.bak`（dev.db.bak 不在 .gitignore，commit 时别带上）。
+5. **改 parser 后**：先 `npm --prefix backend run build` 过 TS，再
+   `npm --prefix backend test` 跑单测；要验真实抓取可起临时 Nest application context
+   调 CrawlerService（写完即删的脚本）。
+6. **Windows git autocrlf 警告**（"LF will be replaced by CRLF"）正常，忽略。
+7. **commit message 用中文**，遵循现有风格（短标题 + 空行 + 段落 + 末尾
    `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`）。
 
 ## 7. 推荐下一轮的开局
 
-按 ROI：
+剩下的都是中小活，按 ROI：
 
-1. 先做 **#5（games-registry）** + **#7（schema rename → weapon\*）**——
-   这两个一起做，因为 schema rename 时正好顺手清前端类型，省一次大改。预计
-   1–2 个 commit。
-2. 然后做 **#1（cron scheduler）** —— 让数据自己更新。1 个 commit。
-3. 再补 **#8（parser fixture + jest 测试）** —— 给 ZZZ parser 加保险。1 个 commit。
-4. P0 的 #2 #3 #4 是顺手能修的小活儿，穿插着做。
-5. 真要加新游戏（鸣潮/原神）放最后，前面三件做完之后会轻松得多。
+1. **#2（HSR version-special source）** —— 让 HSR 数据能刷新，价值最高。1 个 commit。
+2. **#4（放宽兑换码窗口）** —— 让兑换码真的能出。顺手能验（看 RedeemCode 表）。1 个 commit。
+3. **#9（恒真判断）+ #13（分类器 preview）** —— 两个小 bug 一起修，碰的都是 ZZZ
+   情报流。#9 改完正好用 #8 的测试框架补一条 case。1 个 commit。
+4. **#10（删/改坏 e2e）** —— 顺手清理。
+5. **#6（合并 source type）** —— 想再降「加游戏成本」时做；动 DTO + 前端下拉 + dispatch。
+6. 真要加新游戏（鸣潮/原神）放最后：米哈游游戏现在 = gameMeta.ts 加一条 +
+   mihoyo-games.ts 加一条 + 写 parser；非米哈游（鸣潮 Kuro）还要新 source type + fetcher。
 
-接到这份说明先 `git log --oneline -10` 看本地是不是这 6 个 commit；如果不是
-（用户已经做了别的）请先和用户对齐。然后挑一件开始，照常路打开 todo + 干活。
+接到这份说明先 `git log --oneline -12` 看本地是不是这 11 个领先提交；如果不是
+（用户已经做了别的或 push/rebase 过）请先和用户对齐。然后挑一件，照常打开 todo 干活。
