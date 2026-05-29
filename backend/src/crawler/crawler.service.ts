@@ -13,6 +13,11 @@ import {
 } from './mihoyo-games';
 import { parseMihoyoVersionSpecial } from './parsers/mihoyo-version-special';
 import { parseZzzNewsVersion } from './parsers/zzz-news-version';
+import {
+  ParsedRedeemCode,
+  isRedeemCodeSource,
+  parseRedeemCodeSource,
+} from './parsers/redeem-code';
 
 @Injectable()
 export class CrawlerService {
@@ -57,6 +62,23 @@ export class CrawlerService {
         return summary;
       }
 
+      if (isRedeemCodeSource(source.type)) {
+        const summary = await this.crawlRedeemCodeSource(source);
+        await this.prisma.source.update({
+          where: { id: sourceId },
+          data: { lastCrawledAt: new Date() },
+        });
+        await this.prisma.crawlLog.update({
+          where: { id: log.id },
+          data: {
+            status: 'success',
+            message: `${summary.activeCodes} 有效码（共解析 ${summary.totalParsed} 条）`,
+            finishedAt: new Date(),
+          },
+        });
+        return summary;
+      }
+
       const candidates = await this.fetchSource(source);
       let createdArticles = 0;
       let skippedArticles = 0;
@@ -94,32 +116,17 @@ export class CrawlerService {
         });
         createdArticles += 1;
 
-        const codes = this.classification.extractRedeemCodes({
+        const codeStrings = this.classification.extractRedeemCodes({
           ...candidate,
           category,
         });
-        detectedCodes += codes.length;
-
-        for (const code of codes) {
-          await this.prisma.redeemCode.upsert({
-            where: {
-              gameId_code: {
-                gameId: source.gameId,
-                code,
-              },
-            },
-            update: {
-              articleId: article.id,
-              description: candidate.title,
-            },
-            create: {
-              gameId: source.gameId,
-              articleId: article.id,
-              code,
-              description: candidate.title,
-            },
-          });
-        }
+        detectedCodes += await this.persistRedeemCodes({
+          gameId: source.gameId,
+          articleId: article.id,
+          sourceId: source.id,
+          codes: codeStrings.map((code) => ({ code })),
+          defaultDescription: candidate.title,
+        });
       }
 
       await this.prisma.source.update({
@@ -235,6 +242,78 @@ export class CrawlerService {
       bannerCount: parsed.banners.length,
       eventCount: parsed.events.length,
     };
+  }
+
+  private async crawlRedeemCodeSource(source: Source) {
+    const parsed = await parseRedeemCodeSource(source);
+    const activeCodes = await this.persistRedeemCodes({
+      gameId: source.gameId,
+      sourceId: source.id,
+      codes: parsed,
+      defaultDescription: source.name,
+    });
+
+    return {
+      sourceId: source.id,
+      totalParsed: parsed.length,
+      activeCodes,
+    };
+  }
+
+  /**
+   * 兑换码落库（文章流和码源共用）。去重靠 @@unique([gameId, code])：
+   *   - 有效码（status≠expired）upsert，新建或刷新来源/奖励/说明；
+   *   - 过期码只对库里已有的同码降级标 expired，不新建——聚合页一次能列几百条
+   *     历史过期码，全塞进去纯属噪音。
+   * 返回写入/刷新的有效码数量。
+   */
+  private async persistRedeemCodes(params: {
+    gameId: string;
+    codes: ParsedRedeemCode[];
+    sourceId?: string | null;
+    articleId?: string | null;
+    defaultDescription?: string | null;
+  }): Promise<number> {
+    let activeCount = 0;
+
+    for (const candidate of params.codes) {
+      const code = candidate.code.toUpperCase();
+      const status = candidate.status ?? 'unused';
+      const description = candidate.description ?? params.defaultDescription;
+
+      if (status === 'expired') {
+        await this.prisma.redeemCode.updateMany({
+          where: { gameId: params.gameId, code },
+          data: { status: 'expired' },
+        });
+        continue;
+      }
+
+      await this.prisma.redeemCode.upsert({
+        where: { gameId_code: { gameId: params.gameId, code } },
+        update: {
+          status,
+          ...(params.articleId ? { articleId: params.articleId } : {}),
+          ...(params.sourceId ? { sourceId: params.sourceId } : {}),
+          ...(candidate.reward ? { reward: candidate.reward } : {}),
+          ...(description ? { description } : {}),
+          ...(candidate.expiredAt ? { expiredAt: candidate.expiredAt } : {}),
+        },
+        create: {
+          gameId: params.gameId,
+          articleId: params.articleId ?? null,
+          sourceId: params.sourceId ?? null,
+          code,
+          reward: candidate.reward ?? null,
+          description: description ?? null,
+          expiredAt: candidate.expiredAt ?? null,
+          status,
+        },
+      });
+      activeCount += 1;
+    }
+
+    return activeCount;
   }
 
   private async fetchSource(source: Source) {

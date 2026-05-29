@@ -39,9 +39,10 @@ model Source {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  game      Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  articles  Article[]
-  crawlLogs CrawlLog[]
+  game        Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  articles    Article[]
+  crawlLogs   CrawlLog[]
+  redeemCodes RedeemCode[]
 
   @@index([gameId])
 }
@@ -77,8 +78,10 @@ model RedeemCode {
   id          String    @id @default(uuid())
   gameId      String
   articleId   String?
+  sourceId    String?
   code        String
   description String?
+  reward      String?
   expiredAt   DateTime?
   status      String    @default("unused")
   createdAt   DateTime  @default(now())
@@ -86,10 +89,12 @@ model RedeemCode {
 
   game    Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
   article Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  source  Source?  @relation(fields: [sourceId], references: [id], onDelete: SetNull)
 
   @@unique([gameId, code])
   @@index([gameId])
   @@index([articleId])
+  @@index([sourceId])
   @@index([status])
 }
 
