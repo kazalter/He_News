@@ -690,3 +690,20 @@ function serializePhase(data: PhaseAccumulator): Record<string, unknown> {
     activities: data.activities,
   };
 }
+
+/**
+ * 仅供单测使用：这些纯文本解析函数全靠正则吃米哈游公告的中文措辞，
+ * 模板一变就会 silently 全空。导出它们好让 index.spec.ts 直接钉死格式。
+ */
+export const __testables = {
+  parseAgents,
+  parseEngines,
+  parseAgentToken,
+  parseEngineToken,
+  parseTimeRange,
+  parseDebutAgentNames,
+  parseActivities,
+  parseMainStory,
+  findRelevantArticles,
+  htmlToText,
+};
