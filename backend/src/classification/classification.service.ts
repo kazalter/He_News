@@ -45,18 +45,24 @@ export class ClassificationService {
   extractRedeemCodes(input: {
     title?: string | null;
     content?: string | null;
+    category?: string | null;
   }) {
     const text = `${input.title ?? ''}\n${input.content ?? ''}`;
     const upperText = text.toUpperCase();
     const candidates = new Set<string>();
     const codePattern = /\b[A-Z0-9][A-Z0-9-]{5,29}\b/g;
 
+    // 整篇本来就是兑换码文章（category === 'redeem_code'）时，正文里像码的串
+    // 基本都是码，不再强求每个码附近一定出现「兑换码」字样——米哈游排版常把
+    // 标题/说明和码列表隔得很远，旧的硬性上下文校验导致这类文章一个码都出不来。
+    const relaxContext = (input.category ?? '') === 'redeem_code';
+
     for (const match of upperText.matchAll(codePattern)) {
       const code = match[0].replace(/-+$/, '');
 
       if (
         this.looksLikeCode(code) &&
-        this.hasRedeemCodeContext(upperText, match.index ?? 0)
+        (relaxContext || this.hasRedeemCodeContext(upperText, match.index ?? 0))
       ) {
         candidates.add(code);
       }
@@ -105,8 +111,8 @@ export class ClassificationService {
   }
 
   private hasRedeemCodeContext(text: string, index: number) {
-    const start = Math.max(0, index - 160);
-    const end = Math.min(text.length, index + 160);
+    const start = Math.max(0, index - 400);
+    const end = Math.min(text.length, index + 400);
     const context = text.slice(start, end);
 
     return /兑换码|礼包码|福利码|口令码|CDK|REDEEM|GIFT CODE|PROMO CODE/.test(

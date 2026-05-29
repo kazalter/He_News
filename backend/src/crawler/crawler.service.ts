@@ -94,7 +94,10 @@ export class CrawlerService {
         });
         createdArticles += 1;
 
-        const codes = this.classification.extractRedeemCodes(candidate);
+        const codes = this.classification.extractRedeemCodes({
+          ...candidate,
+          category,
+        });
         detectedCodes += codes.length;
 
         for (const code of codes) {
