@@ -9,9 +9,9 @@ export type ParsedVersionBanner = {
   characterPath?: string;
   characterElement?: string;
   isNewCharacter: boolean;
-  lightConeName?: string;
-  lightConeRarity?: number;
-  isNewLightCone: boolean;
+  weaponName?: string;
+  weaponRarity?: number;
+  isNewWeapon: boolean;
   startAt?: Date;
   endAt?: Date;
   rawTime?: string;

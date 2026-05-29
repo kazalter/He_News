@@ -243,13 +243,13 @@ function formatBannerTime(startAt?: string | null, endAt?: string | null, raw?: 
             <div class="banner-card__row">
               <div class="banner-card__label">
                 <span>{{ weaponLabel(activePlan.game) }}</span>
-                <em v-if="banner.isNewLightCone" class="badge-new">
+                <em v-if="banner.isNewWeapon" class="badge-new">
                   <Star /> 新{{ weaponLabel(activePlan.game) }}
                 </em>
               </div>
-              <strong v-if="banner.lightConeName">
-                {{ banner.lightConeName }}
-                <small v-if="banner.lightConeRarity">{{ banner.lightConeRarity }}★</small>
+              <strong v-if="banner.weaponName">
+                {{ banner.weaponName }}
+                <small v-if="banner.weaponRarity">{{ banner.weaponRarity }}★</small>
               </strong>
               <strong v-else class="banner-card__empty">—</strong>
             </div>

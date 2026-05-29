@@ -143,9 +143,9 @@ model VersionPlanBanner {
   characterPath    String?
   characterElement String?
   isNewCharacter   Boolean   @default(false)
-  lightConeName    String?
-  lightConeRarity  Int?
-  isNewLightCone   Boolean   @default(false)
+  weaponName       String?
+  weaponRarity     Int?
+  isNewWeapon      Boolean   @default(false)
   startAt          DateTime?
   endAt            DateTime?
   rawTime          String?

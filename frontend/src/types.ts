@@ -93,9 +93,9 @@ export type VersionPlanBanner = {
   characterPath?: string | null
   characterElement?: string | null
   isNewCharacter: boolean
-  lightConeName?: string | null
-  lightConeRarity?: number | null
-  isNewLightCone: boolean
+  weaponName?: string | null
+  weaponRarity?: number | null
+  isNewWeapon: boolean
   startAt?: string | null
   endAt?: string | null
   rawTime?: string | null

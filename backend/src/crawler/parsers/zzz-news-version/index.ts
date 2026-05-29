@@ -252,9 +252,9 @@ export async function parseZzzNewsVersion(
         // 复用 characterPath 字段（语义上对应星穹铁道的"命途"）。
         characterPath: agent.spec,
         isNewCharacter: isDebutCharacter,
-        lightConeName: engine?.name,
-        lightConeRarity: engine?.rarity,
-        isNewLightCone: isDebutCharacter && !!engine,
+        weaponName: engine?.name,
+        weaponRarity: engine?.rarity,
+        isNewWeapon: isDebutCharacter && !!engine,
         startAt: data.startAt,
         endAt: data.endAt,
         rawTime:

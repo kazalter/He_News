@@ -124,9 +124,9 @@ function parseBanners(
       isNewCharacter: Boolean(
         character && newCharacterNames.some((n) => sameName(n, character.name)),
       ),
-      lightConeName: lightCone?.name,
-      lightConeRarity: lightCone?.rarity,
-      isNewLightCone: Boolean(
+      weaponName: lightCone?.name,
+      weaponRarity: lightCone?.rarity,
+      isNewWeapon: Boolean(
         lightCone && newLightConeNames.some((n) => sameName(n, lightCone.name)),
       ),
       startAt,
