@@ -1,36 +1,110 @@
 import type { Game } from '../types'
 
-export const gameKeys = ['genshin', 'hsr', 'zzz', 'wuwa', 'ark', 'r1999', 'bluearchive'] as const
-export type GameKey = (typeof gameKeys)[number] | 'other'
+export type GameKey =
+  | 'genshin'
+  | 'hsr'
+  | 'zzz'
+  | 'wuwa'
+  | 'ark'
+  | 'r1999'
+  | 'bluearchive'
+  | 'other'
 
 export type GameMeta = {
   key: GameKey
   name: string
   shortName: string
   color: string
+  /** 角色配套武器的叫法：星穹铁道→光锥，绝区零→音擎，其余→武器。 */
+  weapon: string
+  /** resolveGameKey 用来从 slug/name 推断 key 的关键词（已小写）。 */
+  keywords: string[]
 }
 
+/**
+ * 单一游戏注册表：加一个新游戏 = 在这里加一条（再写后端 parser）。
+ * 颜色、中文名、武器叫法、识别关键词都集中在这一处，不再散落到
+ * resolveGameKey / WEAPON_TERMS / tokens.css 等多个地方。
+ * 'other' 是兜底项，没有关键词，永远排在匹配循环最后。
+ */
 export const gameMetas: Record<GameKey, GameMeta> = {
-  genshin: { key: 'genshin', name: '原神', shortName: '原神', color: '#B59969' },
-  hsr: { key: 'hsr', name: '崩坏：星穹铁道', shortName: '星穹铁道', color: '#9389C2' },
-  zzz: { key: 'zzz', name: '绝区零', shortName: '绝区零', color: '#C7A547' },
-  wuwa: { key: 'wuwa', name: '鸣潮', shortName: '鸣潮', color: '#5FA29A' },
-  ark: { key: 'ark', name: '明日方舟', shortName: '明日方舟', color: '#C77D4D' },
-  r1999: { key: 'r1999', name: '重返未来:1999', shortName: '1999', color: '#AF6770' },
-  bluearchive: { key: 'bluearchive', name: '蔚蓝档案', shortName: '蔚蓝档案', color: '#7689B0' },
-  other: { key: 'other', name: '其他', shortName: '其他', color: '#85858E' },
+  genshin: {
+    key: 'genshin',
+    name: '原神',
+    shortName: '原神',
+    color: '#B59969',
+    weapon: '武器',
+    keywords: ['genshin', '原神'],
+  },
+  hsr: {
+    key: 'hsr',
+    name: '崩坏：星穹铁道',
+    shortName: '星穹铁道',
+    color: '#9389C2',
+    weapon: '光锥',
+    keywords: ['hsr', 'starrail', '星穹', '崩坏'],
+  },
+  zzz: {
+    key: 'zzz',
+    name: '绝区零',
+    shortName: '绝区零',
+    color: '#C7A547',
+    weapon: '音擎',
+    keywords: ['zzz', 'zenless', '绝区'],
+  },
+  wuwa: {
+    key: 'wuwa',
+    name: '鸣潮',
+    shortName: '鸣潮',
+    color: '#5FA29A',
+    weapon: '武器',
+    keywords: ['wuwa', 'wuthering', '鸣潮'],
+  },
+  ark: {
+    key: 'ark',
+    name: '明日方舟',
+    shortName: '明日方舟',
+    color: '#C77D4D',
+    weapon: '武器',
+    keywords: ['ark', 'arknights', '方舟'],
+  },
+  r1999: {
+    key: 'r1999',
+    name: '重返未来:1999',
+    shortName: '1999',
+    color: '#AF6770',
+    weapon: '武器',
+    keywords: ['1999', 'reverse'],
+  },
+  bluearchive: {
+    key: 'bluearchive',
+    name: '蔚蓝档案',
+    shortName: '蔚蓝档案',
+    color: '#7689B0',
+    weapon: '武器',
+    keywords: ['blue', 'archive', '蔚蓝', '档案'],
+  },
+  other: {
+    key: 'other',
+    name: '其他',
+    shortName: '其他',
+    color: '#85858E',
+    weapon: '武器',
+    keywords: [],
+  },
 }
+
+export const gameKeys = Object.values(gameMetas)
+  .map((meta) => meta.key)
+  .filter((key): key is Exclude<GameKey, 'other'> => key !== 'other')
 
 export function resolveGameKey(game?: Pick<Game, 'slug' | 'name'> | null): GameKey {
   const text = `${game?.slug ?? ''} ${game?.name ?? ''}`.toLowerCase()
 
-  if (text.includes('genshin') || text.includes('原神')) return 'genshin'
-  if (text.includes('hsr') || text.includes('starrail') || text.includes('星穹') || text.includes('崩坏')) return 'hsr'
-  if (text.includes('zzz') || text.includes('zenless') || text.includes('绝区')) return 'zzz'
-  if (text.includes('wuwa') || text.includes('wuthering') || text.includes('鸣潮')) return 'wuwa'
-  if (text.includes('ark') || text.includes('arknights') || text.includes('方舟')) return 'ark'
-  if (text.includes('1999') || text.includes('reverse')) return 'r1999'
-  if (text.includes('blue') || text.includes('archive') || text.includes('蔚蓝') || text.includes('档案')) return 'bluearchive'
+  for (const meta of Object.values(gameMetas)) {
+    if (meta.key === 'other') continue
+    if (meta.keywords.some((keyword) => text.includes(keyword))) return meta.key
+  }
 
   return 'other'
 }
@@ -52,20 +126,6 @@ export function matchesGameFilter(game: Pick<Game, 'slug' | 'name'> | undefined 
   return selectedGame === 'all' || resolveGameKey(game) === selectedGame
 }
 
-/**
- * 不同游戏对"角色配套武器"的叫法不一样：
- *   星穹铁道 → 光锥；绝区零 → 音擎；原神 → 武器
- * banner 卡片上的"光锥/新光锥"标签需要按游戏切换；characterPath 里的"命途/特性"
- * 也是一对：HSR 叫命途、ZZZ 叫特性，但目前 banner card 没显式标这个 label，先不动。
- */
-const WEAPON_TERMS: Partial<Record<GameKey, string>> = {
-  hsr: '光锥',
-  zzz: '音擎',
-  genshin: '武器',
-  wuwa: '武器',
-}
-
 export function weaponLabel(game?: Pick<Game, 'slug' | 'name'> | null) {
-  const key = resolveGameKey(game)
-  return WEAPON_TERMS[key] ?? '武器'
+  return getGameMeta(game).weapon
 }

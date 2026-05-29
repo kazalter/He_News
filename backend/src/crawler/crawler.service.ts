@@ -6,6 +6,11 @@ import { createHash } from 'node:crypto';
 import Parser from 'rss-parser';
 import { ClassificationService } from '../classification/classification.service';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  MihoyoGameConfig,
+  extractMihoyoAppId,
+  findMihoyoGameByAppId,
+} from './mihoyo-games';
 import { parseMihoyoVersionSpecial } from './parsers/mihoyo-version-special';
 import { parseZzzNewsVersion } from './parsers/zzz-news-version';
 
@@ -353,10 +358,11 @@ export class CrawlerService {
     source: Source,
   ): Promise<CrawledArticle[]> {
     const endpoint = new URL(source.url);
-    const channelIds = this.getMihoyoChannelIds(endpoint);
+    const game = this.resolveMihoyoGame(endpoint);
+    const channelIds = this.getMihoyoChannelIds(endpoint, game);
     const pageSize = this.getNumberParam(endpoint, 'iPageSize', 10, 1, 30);
     const lang = endpoint.searchParams.get('sLangKey') ?? 'zh-cn';
-    const newsBase = this.getMihoyoNewsBaseUrl(endpoint);
+    const newsBase = game.newsBaseUrl;
     const candidates: CrawledArticle[] = [];
     const seenIds = new Set<number>();
 
@@ -410,20 +416,19 @@ export class CrawlerService {
   }
 
   /**
-   * 不同游戏的 content_v2_user API 用同一套，但每个 appId 对应不同的官网域名，
-   * 文章链接、Referer 都要按 appId 切换。这里按 source URL path 里的 appId
-   * 决定 news 落地页域名；未知 appId 兜底到星穹铁道（避免破坏既有 source）。
+   * 不同游戏的 content_v2_user API 用同一套，但每个 appId 对应不同的官网域名、
+   * 默认频道。按 source URL path 里的 appId 在注册表里查对应游戏；查不到直接报错，
+   * 不再静默兜底成星穹铁道（否则新游戏配错 appId 会拿到星铁数据）。
    */
-  private getMihoyoNewsBaseUrl(endpoint: URL): string {
-    const appMatch = endpoint.pathname.match(
-      /\/content_v2_user\/app\/([0-9a-f]+)\//i,
-    );
-    const appId = appMatch?.[1];
-    const map: Record<string, string> = {
-      '1963de8dc19e461c': 'https://sr.mihoyo.com',
-      '706fd13a87294881': 'https://zzz.mihoyo.com',
-    };
-    return (appId && map[appId]) || 'https://sr.mihoyo.com';
+  private resolveMihoyoGame(endpoint: URL): MihoyoGameConfig {
+    const appId = extractMihoyoAppId(endpoint);
+    const game = findMihoyoGameByAppId(appId);
+    if (!game) {
+      throw new BadRequestException(
+        `未知的米哈游 content_v2 appId「${appId ?? '(缺失)'}」，请先在 mihoyo-games 注册表登记该游戏`,
+      );
+    }
+    return game;
   }
 
   /**
@@ -470,14 +475,14 @@ export class CrawlerService {
     };
   }
 
-  private getMihoyoChannelIds(endpoint: URL) {
+  private getMihoyoChannelIds(endpoint: URL, game: MihoyoGameConfig) {
     const channelParam =
       endpoint.searchParams.get('channels') ??
       endpoint.searchParams.get('channelIds') ??
       endpoint.searchParams.get('iChanId');
 
     if (!channelParam) {
-      return [256, 257, 258];
+      return game.defaultChannels;
     }
 
     const channelIds = channelParam
@@ -485,7 +490,7 @@ export class CrawlerService {
       .map((value) => Number(value))
       .filter((value) => Number.isInteger(value) && value > 0);
 
-    return channelIds.length > 0 ? channelIds : [256, 257, 258];
+    return channelIds.length > 0 ? channelIds : game.defaultChannels;
   }
 
   private getNumberParam(
