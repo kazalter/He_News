@@ -103,6 +103,12 @@ const GAMES: GameSeed[] = [
         url: wuwa.jsonBase,
         crawlIntervalMinutes: 720,
       },
+      {
+        name: 'GameKee 鸣潮兑换码',
+        type: 'gamekee-codes',
+        url: 'https://www.gamekee.com/mc/622905.html',
+        crawlIntervalMinutes: 720,
+      },
     ],
   },
 ];

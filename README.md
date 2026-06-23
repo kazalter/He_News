@@ -17,16 +17,16 @@ npm run setup        # 建库 + seed（崩铁 / 绝区零 / 鸣潮 三个游戏�
 npm run start:dev    # :3000，调度器自动开抓
 ```
 
-前端另开窗口：`cd frontend; npm install; npm run dev`（:5173）。
+前端另开窗口：`cd frontend; npm install; npm run dev`（:5174）。
 
 > 以后新增游戏 / 来源，记得同步写进 `backend/prisma/seed.ts`，换环境才能一键恢复。
 
 ## 日常启动
 
-一键 `.\start-dev.bat`（清 3000/5173 端口、合并前后端日志，`Q` 或 `Ctrl+C` 停）。
+一键 `.\start-dev.bat`（清 3000/5174 端口、合并前后端日志，`Q` 或 `Ctrl+C` 停）。
 或分开起：后端 `npm --prefix backend run start:dev`，前端 `npm --prefix frontend run dev`。
 
-前端 http://localhost:5173 ・ 后端 http://localhost:3000 ・ API 前缀 `/api`。
+前端 http://localhost:5174 ・ 后端 http://localhost:3000 ・ API 前缀 `/api`。
 
 ## 首次使用
 

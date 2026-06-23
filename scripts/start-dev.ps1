@@ -1,3 +1,5 @@
+param([switch]$Headless)
+
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent $PSScriptRoot
@@ -414,20 +416,22 @@ function Stop-StartedProcess {
   }
 }
 
-[System.Console]::Title = 'HE News Dev Server'
+if (-not $Headless) { try { [System.Console]::Title = 'HE News Dev Server' } catch { } }
 
 # Capture Ctrl+C through the same key-polling loop that already watches for 'Q'.
 # Using [Console]::add_CancelKeyPress with a PS ScriptBlock crashes on newer
 # .NET runtimes ("There is no Runspace available to run scripts in this
 # thread") because the event fires on a thread that has no Runspace attached.
-$script:OriginalTreatCtrlCAsInput = [System.Console]::TreatControlCAsInput
-[System.Console]::TreatControlCAsInput = $true
+if (-not $Headless) {
+  $script:OriginalTreatCtrlCAsInput = [System.Console]::TreatControlCAsInput
+  [System.Console]::TreatControlCAsInput = $true
+}
 
 $BackendProcess = $null
 $FrontendProcess = $null
 
 try {
-  Clear-Host
+  if (-not $Headless) { Clear-Host }
   Write-Step 'HE News dev server launcher' 'Cyan'
   Write-Host ''
 
@@ -468,7 +472,7 @@ try {
 
   Write-Step 'Cleaning before start...' 'Cyan'
   Stop-Port 3000
-  Stop-Port 5173
+  Stop-Port 5174
   Clear-Runtime
 
   Ensure-Dependencies -ProjectDir $Backend -Name 'backend'
@@ -482,14 +486,14 @@ try {
     -ErrLog $BackendErr
 
   $FrontendProcess = Start-NpmProcess `
-    -Name 'frontend http://127.0.0.1:5173' `
+    -Name 'frontend http://127.0.0.1:5174' `
     -WorkingDirectory $Frontend `
-    -Arguments @('run', 'dev', '--', '--host', '127.0.0.1') `
+    -Arguments @('run', 'dev', '--', '--host', '127.0.0.1', '--port', '5174') `
     -OutLog $FrontendOut `
     -ErrLog $FrontendErr
 
   Write-Host ''
-  Write-Step 'Frontend: http://127.0.0.1:5173/' 'Green'
+  Write-Step 'Frontend: http://127.0.0.1:5174/' 'Green'
   Write-Step 'Backend:  http://localhost:3000/' 'Green'
   Write-Host 'Logs are merged below. Press Q or Ctrl+C to stop both services.' -ForegroundColor DarkGray
   Write-Host ''
@@ -506,7 +510,7 @@ try {
     Write-Step 'Backend did not respond within 45s; opening browser anyway.' 'DarkYellow'
   }
 
-  Start-Process 'http://127.0.0.1:5173/'
+  if (-not $Headless) { Start-Process 'http://127.0.0.1:5174/' }
 
   while (-not $script:Stopping) {
     Read-NewLogLines -Path $BackendOut -Prefix '[backend]' -Color 'Gray'
@@ -519,7 +523,7 @@ try {
       break
     }
 
-    if ([Console]::KeyAvailable) {
+    if (-not $Headless -and [Console]::KeyAvailable) {
       $Key = [Console]::ReadKey($true)
       $isCtrlC = ($Key.Key -eq 'C') -and (($Key.Modifiers -band [ConsoleModifiers]::Control) -ne 0)
       if ($Key.Key -eq 'Q' -or $isCtrlC) {
@@ -535,7 +539,6 @@ try {
   if ($BackendProcess) { Stop-ProcessTree -ProcessId $BackendProcess.Id -Label 'backend tree' }
   if ($FrontendProcess) { Stop-ProcessTree -ProcessId $FrontendProcess.Id -Label 'frontend tree' }
   Stop-Port 3000
-  Stop-Port 5173
   Stop-Port 5174
   # Cleanup finished -- the journal is no longer needed.
   if ($script:PidJournal -and (Test-Path -LiteralPath $script:PidJournal)) {

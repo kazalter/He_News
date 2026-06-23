@@ -52,6 +52,35 @@ export async function fetchGamekeeCardPools(
   return parseCardPools(data);
 }
 
+/**
+ * 取某条 wiki 词条的正文富文本块（content_json）。
+ *
+ * GameKee 词条正文走 `GET /content/detail/<contentId>`，正文不在 `content`（常为空），
+ * 而在 `content_json`——一段 Slate 风格的富文本 JSON 字符串（块数组）。这里解析成块
+ * 数组返回；接口失败 / 字段缺失 / JSON 坏掉都退回空数组，让调用方按 best-effort 处理。
+ */
+export async function fetchGamekeeContentJson(
+  contentId: number | string,
+  alias: string,
+): Promise<unknown> {
+  const { data } = await axios.get<{ data?: { content_json?: string } }>(
+    `${GAMEKEE_API}/content/detail/${contentId}`,
+    {
+      headers: { 'game-alias': alias, 'User-Agent': USER_AGENT },
+      timeout: 20000,
+    },
+  );
+  const contentJson = data?.data?.content_json;
+  if (!contentJson) {
+    return [];
+  }
+  try {
+    return JSON.parse(contentJson);
+  } catch {
+    return [];
+  }
+}
+
 type RawCardPool = {
   name?: string;
   start_at?: number;

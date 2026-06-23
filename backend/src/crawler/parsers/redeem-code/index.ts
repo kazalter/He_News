@@ -8,12 +8,14 @@
 import type { Source } from '@prisma/client';
 import { parseGame8Codes } from './game8';
 import { parseBilibiliComments } from './bilibili-comments';
+import { parseGamekeeCodes } from './gamekee';
 import { ParsedRedeemCode } from './types';
 
 /** 走"码源管线"（直接出码、不产文章）的 source.type 集合。 */
 export const REDEEM_CODE_SOURCE_TYPES = new Set<string>([
   'game8-codes',
   'bilibili-comments',
+  'gamekee-codes',
 ]);
 
 export function isRedeemCodeSource(type: string): boolean {
@@ -28,6 +30,8 @@ export async function parseRedeemCodeSource(
       return parseGame8Codes(source.url);
     case 'bilibili-comments':
       return parseBilibiliComments(source.url);
+    case 'gamekee-codes':
+      return parseGamekeeCodes(source.url);
     default:
       throw new Error(`Unsupported redeem-code source type: ${source.type}`);
   }
